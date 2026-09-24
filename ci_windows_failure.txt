@@ -1,0 +1,37 @@
+tests/core/test_dag.py::test_assert_acyclic_raises PASSED                [  6%]
+tests/core/test_server_api.py::test_plan_unknown_project_is_200_business_error PASSED [ 41%]
+tests/rel/test_retry_timer.py::test_task_stuck_seconds_default_and_env_override FAILED [ 76%]
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+E   UnicodeEncodeError: 'charmap' codec can't encode characters in position 25-28: character maps to <undefined>
+FAILED tests/rel/test_retry_timer.py::test_task_stuck_seconds_default_and_env_override - UnicodeEncodeError: 'charmap' codec can't encode characters in position 25-28: character maps to <undefined>
+=== Last 30 lines ===
+
+tests/core/test_governance_api.py::test_approvals_lifecycle\ntests/governance/test_governance.py::TestApprovalManager::test_approve\ntests/int/test_integration\u9a8c\u6536.py::TestPhase2Checklist::test_06_approval_gate_approve
+  D:\a\AideanFleet\AideanFleet\fleet\governance\approval.py:116: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow().isoformat()
+
+tests/core/test_governance_api.py::test_approvals_reject\ntests/governance/test_governance.py::TestApprovalManager::test_reject\ntests/governance/test_governance.py::TestApprovalManager::test_check_expired\ntests/int/test_integration\u9a8c\u6536.py::TestPhase2Checklist::test_07_approval_gate_reject
+  D:\a\AideanFleet\AideanFleet\fleet\governance\approval.py:130: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow().isoformat()
+
+tests/core/test_governance_api.py::test_usage_totals_and_by_date
+tests/core/test_governance_api.py::test_usage_totals_and_by_date
+  D:\a\AideanFleet\AideanFleet\fleet\governance\usage.py:156: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp=timestamp or datetime.utcnow().isoformat(),
+
+tests/core/test_governance_api.py::test_usage_totals_and_by_date
+  D:\a\AideanFleet\AideanFleet\tests\core\test_governance_api.py:120: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    return datetime.utcnow().date().isoformat()
+
+tests/governance/test_governance.py::TestApprovalManager::test_check_expired
+  D:\a\AideanFleet\AideanFleet\tests\governance\test_governance.py:289: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    expires_at=(datetime.utcnow() - timedelta(hours=1)).isoformat(),
+
+tests/governance/test_governance.py::TestApprovalManager::test_check_expired
+  D:\a\AideanFleet\AideanFleet\fleet\governance\approval.py:146: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/rel/test_retry_timer.py::test_task_stuck_seconds_default_and_env_override - UnicodeEncodeError: 'charmap' codec can't encode characters in position 25-28: character maps to <undefined>
+=========== 1 failed, 288 passed, 18 skipped, 33 warnings in 48.56s ===========
