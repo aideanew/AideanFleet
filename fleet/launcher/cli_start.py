@@ -17,8 +17,13 @@ def default_project_name(project_path: str) -> str:
     """默认项目名 = 项目路径 basename；路径为空回退 AideanFleet。
 
     在 AideanFleet 目录启动其他项目时，项目名应与实际开发目录一致（用户验收项）。
+    跨平台：同时处理 / 和 \\ 作为路径分隔符。
     """
-    name = os.path.basename(os.path.normpath(project_path or "").strip().strip('"')) if project_path.strip() else ""
+    if not project_path or not project_path.strip():
+        return _FALLBACK_PROJECT_NAME
+    # 统一替换反斜杠为正斜杠，再 strip 尾部斜杠，取最后一段
+    cleaned = project_path.strip().strip('"').replace("\\", "/").rstrip("/")
+    name = cleaned.rsplit("/", 1)[-1] if "/" in cleaned else cleaned
     return name or _FALLBACK_PROJECT_NAME
 
 

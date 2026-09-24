@@ -1,6 +1,6 @@
 # Document Index · 文档总索引
 
-> 类型：document-index ｜ 状态：active ｜ 最后更新：2026-09-22 ｜ 基线：HEAD `eb7a63c`
+> 类型：document-index ｜ 状态：active ｜ 最后更新：2026-09-24 ｜ 基线：HEAD `eb7a63c`
 >
 > 回答"当前项目有哪些文档、在哪里"。目录结构与关联关系见 [`project-map.md`](./project-map.md)。
 > **本文件只登记指针，不承载正文。**
@@ -23,6 +23,7 @@
 
 - [需求入口与归档规则](../02_requirements/README.md)
 - [需求基线（当前有效需求）](../02_requirements/product-requirements.md)
+- [用户场景与管理者场景](../02_requirements/user-scenarios.md)
 - [Backlog 待办池](../02_requirements/backlog.md)
 - 新需求原始入口目录：`../02_requirements/inbox/`
 - 功能需求目录：`../02_requirements/features/`
@@ -148,3 +149,7 @@ AideanFleet 全仓无"14 关"这一概念，见 `08_knowledge/lessons-learned.md
 * 目录结构变化 → 同步更新 [`project-map.md`](./project-map.md) 第 2 节
 * 既有权威文件**不迁入 `.docs/`**，只在本文件登记
 * 删除文档前 → 先在本文件改为归档标记，并写入 `09_archive/` 台账
+
+## 追踪（Tracking）
+
+- [进度追踪](../05_tracking/progress.md)

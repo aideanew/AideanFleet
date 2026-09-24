@@ -5,6 +5,7 @@ secrets/
 .env.*.bak
 *.pem
 *.key
+.local/
 
 # ===== 运行时数据（DB/事件流/证据/记忆/通知位点）=====
 data/
@@ -19,6 +20,7 @@ __pycache__/
 2026-09-16-*/
 body.json
 image*.png
+output/
 
 # ===== 虚拟环境 =====
 .venv/
@@ -29,6 +31,8 @@ dist-mock/
 node_modules/
 *.egg-info/
 .pytest_cache-mock/
+fleet/console/frontend/dist/
+fleet/console/frontend/node_modules/
 
 # ===== 兄弟项目产物（正文不入本仓库，仅在 .docs 中留指针）=====
 # Aidean / AideanBot 讨论稿存档，仅本地保留
@@ -39,3 +43,14 @@ DELIVERY/
 # ===== Agent 会话产物 =====
 .openclaw/
 .openclaw-attachments/
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ===== OS =====
+.DS_Store
+Thumbs.db

@@ -22,9 +22,15 @@ from . import dispatcher
 from .contracts import TaskPack
 
 _LAUNCH_PATTERNS = [
+    # Windows 驱动器路径：E:\Demo\Project  或  E:/Demo/Project
     re.compile(
         r"启动新项目\s*[：:]?\s*([A-Za-z0-9_\-\u4e00-\u9fa5]+)\s*[（(]?\s*工作区?\s*[：:]?\s*"
         r"([A-Za-z]:[\\/][^）)\r\n]*)"
+    ),
+    # Linux/Unix 绝对路径：/home/user/project
+    re.compile(
+        r"启动新项目\s*[：:]?\s*([A-Za-z0-9_\-\u4e00-\u9fa5]+)\s*[（(]?\s*工作区?\s*[：:]?\s*"
+        r"(/[\w.\-/]+)"
     ),
     re.compile(
         r"project\s*[:：]\s*([A-Za-z0-9_\-]+)[\s\S]{0,160}?([A-Za-z]:\\(?:[\w.\-]+\\)+[\w.\-]+)",
@@ -54,10 +60,11 @@ def _allowed_roots() -> list[str]:
 
 
 def _workspace_allowed(workspace: str) -> bool:
-    norm = workspace.rstrip("\\/").lower()
+    norm = os.path.normpath(workspace.rstrip("\\/")).lower()
     for root in _allowed_roots():
-        root_norm = root.rstrip("\\/").lower()
-        if norm == root_norm or norm.startswith(root_norm + "\\"):
+        root_norm = os.path.normpath(root.rstrip("\\/")).lower()
+        sep = os.sep
+        if norm == root_norm or norm.startswith(root_norm + sep):
             return True
     return False
 
@@ -69,14 +76,14 @@ def detect_launch_intent(message: str) -> tuple[str, str] | None:
         if not match:
             continue
         pid = re.sub(r"[^A-Za-z0-9_\-]", "", match.group(1))
-        workspace = (match.group(2) or "").strip().replace("/", "\\").rstrip("\\/")
+        workspace = os.path.normpath((match.group(2) or "").strip().rstrip("\\/"))
         if not pid:
             continue
         if not workspace:
             roots = _allowed_roots()
             if not roots:
                 return pid, ""
-            workspace = roots[0].rstrip("\\/") + "\\" + pid
+            workspace = os.path.join(roots[0].rstrip("\\/"), pid)
         return pid, workspace
     return None
 
@@ -189,12 +196,12 @@ def start_project(
     pid = re.sub(r"[^A-Za-z0-9_\-]", "", pid or "")
     if not pid:
         raise ValueError("项目名不能为空")
-    workspace = (workspace or "").strip().replace("/", "\\").rstrip("\\/")
+    workspace = os.path.normpath((workspace or "").strip().rstrip("\\/"))
     if not workspace:
         roots = _allowed_roots()
         if not roots:
             raise ValueError("ALLOWED_ROOTS 未配置，无法推导工作区")
-        workspace = roots[0].rstrip("\\/") + "\\" + pid
+        workspace = os.path.join(roots[0].rstrip("\\/"), pid)
     if not _workspace_allowed(workspace):
         allowed = ", ".join(_allowed_roots()) or "未配置"
         raise ValueError(f"工作区 {workspace} 不在 ALLOWED_ROOTS 内（允许：{allowed}）")

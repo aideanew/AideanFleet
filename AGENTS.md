@@ -1,220 +1,155 @@
-# AGENTS.md - Your Workspace
+# AGENTS.md — AideanFleet 项目规范
 
-This folder is home. Treat it that way.
+> 版本：v2.0  日期：2026-09-24
+> 本文件是所有 Agent（含执行体适配器、Manager、审查器）在 AideanFleet 仓库内工作时的**强制规范**。
+> 违反本文件的代码不予合入。
 
-## First Run
+---
 
-If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out who you are, then delete it. You won't need it again.
+## 一、必读规范（按顺序读）
 
-## Session Startup
+| 序号 | 文件 | 作用 |
+|------|------|------|
+| 1 | `docs/规划总览.md` | 架构权威来源，24 条取舍结论 |
+| 2 | `docs/契约/任务状态机.md` | 10 状态 + 迁移表（FROZEN v1.1） |
+| 3 | `docs/契约/任务进度表字段.md` | 15 字段冻结 |
+| 4 | `docs/契约/控制台API.md` | REST + WS 端点契约 |
+| 5 | `docs/adr.md` | ADR-001 ~ ADR-030 架构决策记录 |
+| 6 | `docs/项目开发-多方案评审标准指令.txt` | 开发阶段评审清单 |
+| 7 | `.docs/00_governance/project-map.md` | 文档体系总入口 |
 
-Use runtime-provided startup context first.
+---
 
-That context may already include:
+## 二、环境命令
 
-- `AGENTS.md`, `SOUL.md`, and `USER.md`
-- recent daily memory such as `memory/YYYY-MM-DD.md`
-- `MEMORY.md` when this is the main session
+```bash
+# 初始化环境
+make setup                    # 创建 .venv + 安装依赖
 
-Do not manually reread startup files unless:
+# 启动控制台
+make run                      # → http://127.0.0.1:5000
 
-1. The user explicitly asks
-2. The provided context is missing something you need
-3. You need a deeper follow-up read beyond the provided startup context
+# CLI 交互模式
+make run-cli
 
-## Memory
+# 测试
+make test                     # 单元测试
+make test-e2e                 # 端到端测试
+make test-all                 # 全部测试
 
-You wake up fresh each session. These files are your continuity:
+# 前端
+make frontend-install         # 安装前端依赖
+make frontend-build           # 构建前端 → static/
 
-- **Daily notes:** `memory/YYYY-MM-DD.md` (create `memory/` if needed) — raw logs of what happened
-- **Long-term:** `MEMORY.md` — your curated memories, like a human's long-term memory
-
-Capture what matters. Decisions, context, things to remember. Skip the secrets unless asked to keep them.
-
-### 🧠 MEMORY.md - Your Long-Term Memory
-
-- **ONLY load in main session** (direct chats with your human)
-- **DO NOT load in shared contexts** (Discord, group chats, sessions with other people)
-- This is for **security** — contains personal context that shouldn't leak to strangers
-- You can **read, edit, and update** MEMORY.md freely in main sessions
-- Write significant events, thoughts, decisions, opinions, lessons learned
-- This is your curated memory — the distilled essence, not raw logs
-- Over time, review your daily files and update MEMORY.md with what's worth keeping
-
-### 📝 Write It Down - No "Mental Notes"!
-
-- **Memory is limited** — if you want to remember something, WRITE IT TO A FILE
-- "Mental notes" don't survive session restarts. Files do.
-- Before writing memory files, read them first; write only concrete updates, never empty placeholders.
-- When someone says "remember this" → update `memory/YYYY-MM-DD.md` or relevant file
-- When you learn a lesson → update AGENTS.md, TOOLS.md, or the relevant skill
-- When you make a mistake → document it so future-you doesn't repeat it
-- **Text > Brain** 📝
-
-## Red Lines
-
-- Don't exfiltrate private data. Ever.
-- Don't run destructive commands without asking.
-- Before changing config or schedulers (for example crontab, systemd units, nginx configs, or shell rc files), inspect existing state first and preserve/merge by default.
-- `trash` > `rm` (recoverable beats gone forever)
-- When in doubt, ask.
-
-## External vs Internal
-
-**Safe to do freely:**
-
-- Read files, explore, organize, learn
-- Search the web, check calendars
-- Work within this workspace
-
-**Ask first:**
-
-- Sending emails, tweets, public posts
-- Anything that leaves the machine
-- Anything you're uncertain about
-
-## Group Chats
-
-You have access to your human's stuff. That doesn't mean you _share_ their stuff. In groups, you're a participant — not their voice, not their proxy. Think before you speak.
-
-### 💬 Know When to Speak!
-
-In group chats where you receive every message, be **smart about when to contribute**:
-
-**Respond when:**
-
-- Directly mentioned or asked a question
-- You can add genuine value (info, insight, help)
-- Something witty/funny fits naturally
-- Correcting important misinformation
-- Summarizing when asked
-
-**Stay silent when:**
-
-- It's just casual banter between humans
-- Someone already answered the question
-- Your response would just be "yeah" or "nice"
-- The conversation is flowing fine without you
-- Adding a message would interrupt the vibe
-
-**The human rule:** Humans in group chats don't respond to every single message. Neither should you. Quality > quantity. If you wouldn't send it in a real group chat with friends, don't send it.
-
-**Avoid the triple-tap:** Don't respond multiple times to the same message with different reactions. One thoughtful response beats three fragments.
-
-Participate, don't dominate.
-
-### 😊 React Like a Human!
-
-On platforms that support reactions (Discord, Slack), use emoji reactions naturally:
-
-**React when:**
-
-- You appreciate something but don't need to reply (👍, ❤️, 🙌)
-- Something made you laugh (😂, 💀)
-- You find it interesting or thought-provoking (🤔, 💡)
-- You want to acknowledge without interrupting the flow
-- It's a simple yes/no or approval situation (✅, 👀)
-
-**Why it matters:**
-Reactions are lightweight social signals. Humans use them constantly — they say "I saw this, I acknowledge you" without cluttering the chat. You should too.
-
-**Don't overdo it:** One reaction per message max. Pick the one that fits best.
-
-## Tools
-
-Skills provide your tools. When you need one, check its `SKILL.md`. Keep local notes (camera names, SSH details, voice preferences) in `TOOLS.md`.
-
-**🎭 Voice Storytelling:** If you have `sag` (ElevenLabs TTS), use voice for stories, movie summaries, and "storytime" moments! Way more engaging than walls of text. Surprise people with funny voices.
-
-**📝 Platform Formatting:**
-
-- **Discord/WhatsApp:** No markdown tables! Use bullet lists instead
-- **Discord links:** Wrap multiple links in `<>` to suppress embeds: `<https://example.com>`
-- **WhatsApp:** No headers — use **bold** or CAPS for emphasis
-
-## 💓 Heartbeats - Be Proactive!
-
-When you receive a heartbeat poll (message matches the configured heartbeat prompt), don't just reply `HEARTBEAT_OK` every time. Use heartbeats productively!
-
-You are free to edit `HEARTBEAT.md` with a short checklist or reminders. Keep it small to limit token burn.
-
-### Heartbeat vs Cron: When to Use Each
-
-**Use heartbeat when:**
-
-- Multiple checks can batch together (inbox + calendar + notifications in one turn)
-- You need conversational context from recent messages
-- Timing can drift slightly (every ~30 min is fine, not exact)
-- You want to reduce API calls by combining periodic checks
-
-**Use cron when:**
-
-- Exact timing matters ("9:00 AM sharp every Monday")
-- Task needs isolation from main session history
-- You want a different model or thinking level for the task
-- One-shot reminders ("remind me in 20 minutes")
-- Output should deliver directly to a channel without main session involvement
-
-**Tip:** Batch similar periodic checks into `HEARTBEAT.md` instead of creating multiple cron jobs. Use cron for precise schedules and standalone tasks.
-
-**Things to check (rotate through these, 2-4 times per day):**
-
-- **Emails** - Any urgent unread messages?
-- **Calendar** - Upcoming events in next 24-48h?
-- **Mentions** - Twitter/social notifications?
-- **Weather** - Relevant if your human might go out?
-
-**Track your checks** in `memory/heartbeat-state.json`:
-
-```json
-{
-  "lastChecks": {
-    "email": 1703275200,
-    "calendar": 1703260800,
-    "weather": null
-  }
-}
+# 清理
+make clean-cache              # 清理 __pycache__ / .pyc
+make clean-data               # 清空 data/（运行时数据）
 ```
 
-**When to reach out:**
+---
 
-- Important email arrived
-- Calendar event coming up (&lt;2h)
-- Something interesting you found
-- It's been >8h since you said anything
+## 三、目录归属规则
 
-**When to stay quiet (HEARTBEAT_OK):**
+```
+fleet/
+├── core/           控制面核心（状态机、DB、事件、计划）—— 角色A
+├── manager/        Manager 逻辑（调度、派工、intake）—— 角色A
+├── console/        控制台服务（FastAPI + WS）—— 角色A
+├── executors/      执行体适配器 —— 角色C
+├── launcher/       启动器 —— 角色C
+├── notify/         通知器 —— 角色C
+└── prompts/        Prompt 模板（ADR-024）—— 角色A
 
-- Late night (23:00-08:00) unless urgent
-- Human is clearly busy
-- Nothing new since last check
-- You just checked &lt;30 minutes ago
+docs/               工程文档线（设计、契约、计划、参考）
+.docs/              治理文档线（规范、标准、追溯链）
+tests/              单元测试
+tests-e2e/          端到端测试
+scripts/            脚本工具
+config/             配置文件（notifications.json）
+data/               运行时数据（gitignored）
+.local/             本地临时文件（gitignored）
+初始设计/            历史设计文档（只读归档）
+```
 
-**Proactive work you can do without asking:**
+---
 
-- Read and organize memory files
-- Check on projects (git status, etc.)
-- Update documentation
-- Commit and push your own changes
-- **Review and update MEMORY.md** (see below)
+## 四、依赖方向约束（违反 = 不予合入）
 
-### 🔄 Memory Maintenance (During Heartbeats)
+```
+fleet/core/        → 不依赖 manager/ 或 console/
+fleet/manager/     → 可依赖 core/，不依赖 console/
+fleet/console/     → 可依赖 core/ 和 manager/
+fleet/executors/   → 可依赖 manager/contracts.py（单向）
+fleet/launcher/    → 可依赖所有模块（启动入口）
+fleet/notify/      → 独立，最小依赖
+```
 
-Periodically (every few days), use a heartbeat to:
+---
 
-1. Read through recent `memory/YYYY-MM-DD.md` files
-2. Identify significant events, lessons, or insights worth keeping long-term
-3. Update `MEMORY.md` with distilled learnings
-4. Remove outdated info from MEMORY.md that's no longer relevant
+## 五、契约变更铁律
 
-Think of it like a human reviewing their journal and updating their mental model. Daily files are raw notes; MEMORY.md is curated wisdom.
+1. `docs/契约/` 下文件为 **FROZEN**，修改需全体维护者签字 + 版本号升级
+2. 修改契约 → 必须同步改代码 → 必须同步改测试 → 必须更新 ADR
+3. 状态机新增状态/迁移 → 必须更新 `fleet/core/state_machine.py` + `tests/test_state_machine.py`
+4. API 新增/删除端点 → 必须更新 `docs/契约/控制台API.md`
 
-The goal: Be helpful without being annoying. Check in a few times a day, do useful background work, but respect quiet time.
+---
 
-## Make It Yours
+## 六、禁止行为
 
-This is a starting point. Add your own conventions, style, and rules as you figure out what works.
+| # | 禁止 | 理由 |
+|---|------|------|
+| 1 | 禁止引入 Redis/MySQL 等外部服务依赖 | ADR-026，违反零外部依赖铁律 |
+| 2 | 禁止在 .tf/.py 中硬编码 AK/SK | 安全铁律，用环境变量 |
+| 3 | 禁止修改 events.jsonl 历史行 | append-only 铁律 |
+| 4 | 禁止跳过状态机直接改 DB 状态 | 状态机是唯一状态变更入口 |
+| 5 | 禁止在 core/ 中 import console/ | 依赖方向违反 |
+| 6 | 禁止引入 Jinja2 等模板引擎 | ADR-024，str.format 即够 |
+| 7 | 禁止自动安装 CLI 执行体 | ADR-027，提供脚本不自动执行 |
+| 8 | 禁止 git push --force 不经确认 | 安全铁律 |
 
-## Related
+---
 
-- [Default AGENTS.md](/reference/AGENTS.default)
+## 七、结构审计清单（每次提交前自检）
+
+```
+[ ] 新增代码不超过 200 行（不含测试）？
+[ ] 新增依赖不超过 1 个？
+[ ] 是否修改了 FROZEN 契约？（如是→停止）
+[ ] 依赖方向是否正确？（core → manager → console）
+[ ] 用户输入是否经过验证？
+[ ] 密钥/Token 是否通过环境变量传入？
+[ ] events.jsonl 写入前是否过 scrub()？
+[ ] SQLite 写操作是否在事务内？
+[ ] 新增 I/O 是否批量处理？
+[ ] 测试是否通过？（make test）
+```
+
+---
+
+## 八、Git 提交规范
+
+- commit message 用中文，格式：`[类型] 简述（ADR-XXX）`
+- 类型：feat / fix / docs / refactor / test / chore
+- 示例：`[feat] 新增 prompt 模板系统（ADR-024）`
+- 一个 commit 只做一件事
+- 推送到 main 分支前确保 `make test` 通过
+
+---
+
+## 九、文档更新规则
+
+- 代码变更涉及接口语义 → 同步更新契约文档
+- 新增 ADR → 更新 `.docs/00_governance/document-index.md`
+- 新增文档 → 更新 `.docs/00_governance/project-map.md`
+- 文档末尾标注追溯链：上游 / 下游 / 关联 ADR
+
+---
+
+## 十、相关文件
+
+- `SOUL.md` — Agent 人格定义（Manager 角色：苏格拉底式追问）
+- `IDENTITY.md` — 身份卡
+- `TOOLS.md` — 工具清单
+- `USER.md` — 用户画像
+- `HEARTBEAT.md` — 心跳检查清单
