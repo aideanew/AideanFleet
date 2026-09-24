@@ -25,7 +25,8 @@ def test_watchdog_stuck_detection(fleet_env):
     db.init_db()
 
     project_id = "WatchdogTest"
-    db.create_project(project_id, project_id, "/tmp/watchdog-test")
+    ws = str(fleet_env["root"] / "watchdog-test")
+    db.create_project(project_id, project_id, ws)
 
     task = db.create_task({
         "project_id": project_id,
@@ -35,7 +36,7 @@ def test_watchdog_stuck_detection(fleet_env):
         "assignee": "test",
         "reviewer": "reviewer-1",
         "verify_cmd": "true",
-        "workspace": "/tmp/watchdog-test",
+        "workspace": ws,
     })
 
     db.transition(task["task_id"], "ASSIGNED")
@@ -60,7 +61,8 @@ def test_watchdog_normal_task_not_flagged(fleet_env):
     db.init_db()
 
     project_id = "WatchdogNormal"
-    db.create_project(project_id, project_id, "/tmp/watchdog-normal")
+    ws = str(fleet_env["root"] / "watchdog-normal")
+    db.create_project(project_id, project_id, ws)
 
     task = db.create_task({
         "project_id": project_id,
@@ -70,7 +72,7 @@ def test_watchdog_normal_task_not_flagged(fleet_env):
         "assignee": "test",
         "reviewer": "reviewer-1",
         "verify_cmd": "true",
-        "workspace": "/tmp/watchdog-normal",
+        "workspace": ws,
     })
 
     db.transition(task["task_id"], "ASSIGNED")

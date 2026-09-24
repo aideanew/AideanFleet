@@ -27,3 +27,7 @@ packages = { find = { include = ["fleet*"] } }
 [tool.setuptools.package-data]
 "fleet.console" = ["dist/**/*", "web/**/*"]
 "fleet.prompts" = ["*.md"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

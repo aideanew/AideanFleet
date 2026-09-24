@@ -11,9 +11,7 @@ from fleet.governance import store as governance_store
 from fleet.governance.usage import UsageAggregator
 from fleet.manager import contracts, intake, reviewer, scheduler
 
-import sys
-sys.path.insert(0, "tests/core")
-from stubs import pass_route
+from tests.core.stubs import pass_route
 from unittest.mock import Mock
 
 

@@ -9,9 +9,7 @@ from fleet.executors.fake import FakeAdapter
 from fleet.manager import contracts, dispatcher
 from fleet.models.retry import policy as default_policy
 
-import sys
-sys.path.insert(0, "tests/core")
-from stubs import pass_route
+from tests.core.stubs import pass_route
 
 
 def test_stream_chunk_e2e(fleet_env, monkeypatch):
