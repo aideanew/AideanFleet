@@ -39,6 +39,15 @@ test.describe('9.2 断网注入 · 重连与增量补拉', () => {
     await unlock(page)
     await expect(page.getByTestId('conn-state')).toContainText('已连接', { timeout: 25_000 })
 
+    // 先进入对话页并制造一条 chat 事件，确保断网前本地事件游标已被推进（>0），
+    // 这样恢复后的 catchUp 才是真正的「增量补拉」，而非 from-scratch 全量。
+    await page.goto('/chat')
+    const marker = `断网前事件-${Date.now()}`
+    const composer = page.locator('textarea').first()
+    await composer.fill(marker)
+    await page.getByRole('button', { name: '发送' }).click()
+    await expect(page.getByText(marker, { exact: true })).toBeVisible({ timeout: 20_000 })
+
     // 断网足够久（退避 1+2+4+8=15s 后进入轮询兜底）
     await context.setOffline(true)
     await expect

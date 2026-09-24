@@ -46,9 +46,9 @@ test.describe('证据采集', () => {
     await saveShot(page, '05-cost')
   })
 
-  test('侧栏：冻结 7 项 + 追加 2 项治理入口', async ({ page }) => {
+  test('侧栏：冻结 7 项 + 追加治理入口与历史页', async ({ page }) => {
     await unlock(page)
-    await expect(page.locator('.nav .item')).toHaveCount(9)
+    await expect(page.locator('.nav .item')).toHaveCount(10)
     await saveShot(page, '06-sidenav')
   })
 

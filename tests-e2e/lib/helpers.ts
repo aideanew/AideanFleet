@@ -35,17 +35,20 @@ export const CORE_PAGES = [
   { path: '/notifications', title: '消息' },
 ] as const
 
-/** UI-03R 追加的三个二级入口（追加在 7 项之后，不参与冻结顺序） */
+/** UI-03R 追加的治理页（审批中心 / 成本面板，带数据源标注） */
 export const EXTRA_PAGES = [
   { path: '/approvals', title: '审批中心' },
   { path: '/cost', title: '成本面板' },
 ] as const
 
+/** 历史页：独立一级页（无治理数据源标注，走历史任务 API），仅参与侧栏顺序 */
+export const HISTORY_PAGE = { path: '/history', title: '历史' } as const
+
 /** 七页回归使用的冻结清单（保持兼容旧断言） */
 export const PAGES = CORE_PAGES
 
 /** 侧栏完整顺序 = 冻结 7 项 + 追加项 */
-export const ALL_PAGES = [...CORE_PAGES, ...EXTRA_PAGES]
+export const ALL_PAGES = [...CORE_PAGES, ...EXTRA_PAGES, HISTORY_PAGE]
 
 /** 解锁控制台（锁屏 → 外壳），返回后停留在 /overview */
 export async function unlock(page: Page): Promise<void> {

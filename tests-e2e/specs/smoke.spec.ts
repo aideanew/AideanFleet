@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ALL_PAGES, CORE_PAGES, EXTRA_PAGES, PAGES, gotoPage, unlock } from '../lib/helpers'
+import { ALL_PAGES, CORE_PAGES, EXTRA_PAGES, HISTORY_PAGE, PAGES, gotoPage, unlock } from '../lib/helpers'
 
 /**
  * 主套件 · 门禁 / 七页回归 / UI-02 四项缺陷回归
@@ -31,6 +31,13 @@ test.describe('门禁与外壳', () => {
         EXTRA_PAGES[i].title,
       )
     }
+    // 历史页必在末尾（治理页之后追加）
+    await expect(
+      page
+        .locator('.nav .item')
+        .nth(CORE_PAGES.length + EXTRA_PAGES.length)
+        .locator('.text b'),
+    ).toHaveText(HISTORY_PAGE.title)
   })
 })
 
