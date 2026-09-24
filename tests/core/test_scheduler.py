@@ -193,58 +193,28 @@ def test_run_loop_step_mode_survives_dispatch_exception(project, monkeypatch, st
     make_task(project, "T-10")
     real_dispatch = scheduler.dispatcher.dispatch
 
-    # DEBUG: track calls
-    import sys as _sys
-    _dispatch_calls = []
-    _persist_calls = []
-
-    # Wrap _persist_dispatch_failure for debugging
-    _orig_persist = scheduler._persist_dispatch_failure
-    def _debug_persist(task_id, exc, *, db_file=None):
-        try:
-            t = db.get_task(task_id, db_file=db_file)
-            state_before = t["exec_status"] if t else "None"
-        except Exception as e:
-            state_before = f"get_task_error: {e}"
-        _persist_calls.append((task_id, state_before, str(exc)))
-        _orig_persist(task_id, exc, db_file=db_file)
-        try:
-            t2 = db.get_task(task_id, db_file=db_file)
-            state_after = t2["exec_status"] if t2 else "None"
-        except Exception as e:
-            state_after = f"get_task_error: {e}"
-        _persist_calls[-1] = (task_id, state_before, str(exc), state_after)
-    monkeypatch.setattr(scheduler, "_persist_dispatch_failure", _debug_persist)
-
     def boom_for_first(task_id, **kwargs):
-        _dispatch_calls.append(task_id)
         if task_id == "T-9":
-            t_before = db.get_task(task_id)
-            _sys.stderr.write(f"DEBUG boom T-9: state_before={t_before['exec_status']}\n")
             db.transition_and_log(task_id, "DOING", actor="scheduler", summary="进入执行")
-            t_after = db.get_task(task_id)
-            _sys.stderr.write(f"DEBUG boom T-9: state_after_DOING={t_after['exec_status']}\n")
             raise RuntimeError("第一拍故障")
-        _sys.stderr.write(f"DEBUG dispatch {task_id}\n")
         return real_dispatch(task_id, **kwargs)
 
     monkeypatch.setattr(scheduler.dispatcher, "dispatch", boom_for_first)
 
     async def drive():
         bus = scheduler.ControlBus("step")
-        task = asyncio.create_task(
-            scheduler.run_loop(bus, project_id=project, interval=0.01, max_ticks=6)
-        )
-        for _ in range(5):  # 每拍一次确认；循环若死在第一拍，T-10 会永远停在 ASSIGNED
+        # 预先发送全部 confirm，消除 confirm 发送速率与 run_loop tick 速率之间的竞态。
+        # 此前用 sleep(0.05) 逐个发送 + max_ticks=6，在 Python 3.12 上 asyncio 调度
+        # 更快导致 tick 在等 confirm 期间被空转耗尽，T-9 永远轮不到派工。
+        for _ in range(8):
             bus.confirm(note="放行")
-            await asyncio.sleep(0.05)
+        task = asyncio.create_task(
+            scheduler.run_loop(bus, project_id=project, interval=0.01, max_ticks=12)
+        )
         await task
         return {tid: db.get_task(tid)["exec_status"] for tid in ("T-9", "T-10")}
 
     states = asyncio.run(drive())
-    _sys.stderr.write(f"DEBUG dispatch_calls={_dispatch_calls}\n")
-    _sys.stderr.write(f"DEBUG persist_calls={_persist_calls}\n")
-    _sys.stderr.write(f"DEBUG final_states={states}\n")
     assert states["T-9"] == "BLOCKED"
     assert states["T-10"] != "ASSIGNED", "run_loop 在第一拍异常后停止运转，T-10 未再被派工"
 
