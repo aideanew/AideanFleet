@@ -1,0 +1,69 @@
+tests/core/test_dag.py::test_assert_acyclic_raises PASSED
+tests/core/test_scheduler.py::test_run_loop_step_mode_survives_dispatch_exception DEBUG dispatch T-10
+DEBUG dispatch T-10
+DEBUG dispatch_calls=['T-10', 'T-10']
+DEBUG persist_calls=[]
+DEBUG final_states={'T-9': 'ASSIGNED', 'T-10': 'BLOCKED'}
+FAILED
+        # DEBUG: track calls
+                _sys.stderr.write(f"DEBUG boom T-9: state_before={t_before['exec_status']}\n")
+                _sys.stderr.write(f"DEBUG boom T-9: state_after_DOING={t_after['exec_status']}\n")
+            _sys.stderr.write(f"DEBUG dispatch {task_id}\n")
+        _sys.stderr.write(f"DEBUG dispatch_calls={_dispatch_calls}\n")
+        _sys.stderr.write(f"DEBUG persist_calls={_persist_calls}\n")
+        _sys.stderr.write(f"DEBUG final_states={states}\n")
+>       assert states["T-9"] == "BLOCKED"
+E       AssertionError: assert 'ASSIGNED' == 'BLOCKED'
+tests/core/test_scheduler.py:248: AssertionError
+FAILED tests/core/test_scheduler.py::test_run_loop_step_mode_survives_dispatch_exception - AssertionError: assert 'ASSIGNED' == 'BLOCKED'
+=== Last 50 lines ===
+=============================== warnings summary ===============================
+tests/core/test_governance_api.py: 2 warnings
+tests/governance/test_governance.py: 6 warnings
+tests/int/test_integration验收.py: 3 warnings
+  /home/runner/work/AideanFleet/AideanFleet/fleet/governance/approval.py:41: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    self.created_at = datetime.utcnow().isoformat()
+
+tests/core/test_governance_api.py: 2 warnings
+tests/governance/test_governance.py: 5 warnings
+tests/int/test_integration验收.py: 3 warnings
+  /home/runner/work/AideanFleet/AideanFleet/fleet/governance/approval.py:44: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    datetime.utcnow() + timedelta(hours=APPROVAL_TIMEOUT_HOURS)
+
+tests/core/test_governance_api.py::test_approvals_lifecycle
+tests/governance/test_governance.py::TestApprovalManager::test_approve
+tests/int/test_integration验收.py::TestPhase2Checklist::test_06_approval_gate_approve
+  /home/runner/work/AideanFleet/AideanFleet/fleet/governance/approval.py:116: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow().isoformat()
+
+tests/core/test_governance_api.py::test_approvals_reject
+tests/governance/test_governance.py::TestApprovalManager::test_reject
+tests/governance/test_governance.py::TestApprovalManager::test_check_expired
+tests/int/test_integration验收.py::TestPhase2Checklist::test_07_approval_gate_reject
+  /home/runner/work/AideanFleet/AideanFleet/fleet/governance/approval.py:130: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow().isoformat()
+
+tests/core/test_governance_api.py::test_usage_totals_and_by_date
+tests/core/test_governance_api.py::test_usage_totals_and_by_date
+  /home/runner/work/AideanFleet/AideanFleet/fleet/governance/usage.py:156: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp=timestamp or datetime.utcnow().isoformat(),
+
+tests/core/test_governance_api.py::test_usage_totals_and_by_date
+  /home/runner/work/AideanFleet/AideanFleet/tests/core/test_governance_api.py:120: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    return datetime.utcnow().date().isoformat()
+
+tests/governance/test_governance.py::TestApprovalManager::test_check_expired
+  /home/runner/work/AideanFleet/AideanFleet/tests/governance/test_governance.py:289: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    expires_at=(datetime.utcnow() - timedelta(hours=1)).isoformat(),
+
+tests/governance/test_governance.py::TestApprovalManager::test_check_expired
+  /home/runner/work/AideanFleet/AideanFleet/fleet/governance/approval.py:146: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/core/test_scheduler.py::test_run_loop_step_mode_survives_dispatch_exception - AssertionError: assert 'ASSIGNED' == 'BLOCKED'
+  
+  - BLOCKED
+  + ASSIGNED
+=========== 1 failed, 285 passed, 21 skipped, 33 warnings in 12.51s ============
