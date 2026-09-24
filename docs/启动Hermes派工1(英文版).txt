@@ -1,0 +1,63 @@
+/fleet
+# Fleet Starter Prompt (Minimal & Complete)
+
+## 1. Project Initialization
+```
+PROJECT=AideanBot, WS=E:/Code/AideanBot
+
+- python --version, hermes --version
+- Check ports: 3333（User）,5000 (console), 9900 (Manager)
+- Start console: python fleet/console/console.py(5000)
+- Start Manager: hermes -p manager gateway run(9900)
+- Super Admin Model of Hermes：gpt-6-astra
+```
+
+## 2. Health Verification
+```
+GET /api/health → all true
+GET 9900/.well-known/agent-card.json → name=Hermes-Manager
+```
+
+## 3. Project Registration
+```
+console/state/projects.json check:
+- If AideanBot not present → create pid, workspace=WS
+- workspace=WS must be in ALLOWED_ROOTS, otherwise STOP
+```
+
+## 4. Task Creation
+```
+console/state/tasks.json → DRAFT: {title, detail, verify_cmd(grep:相对路径:令牌), 
+  assignee=worker类, reviewer=reviewer类, workspace=WS, project=pid}
+```
+
+## 4. Task Dispatch (Manager Only)
+```
+Dispatch via Manager A2A or POST /tasks/<id>/dispatch
+- NEVER execute task details directly
+- All routing through Manager only
+```
+
+## 5. Monitoring
+```
+Poll: GET /api/plan?project=<pid>, GET /api/events?since=<n>
+State machine: DRAFT > ASSIGNED > DOING > SUBMITTED > REVIEWING > DONE/PARTIAL/REWORK/BLOCKED
+REWORK limit: 3 → ESCALATED
+- Forward Manager↔worker messages verbatim, no rewriting
+```
+
+## 6. Collection/Close
+```
+Accept only: DONE/PARTIAL + machine-gate verify PASS + evidence + 6-node report
+Reports to: fleet/reports/
+```
+
+## 7. Red Lines (Hard Constraints)
+- DENY_RE: Dangerous command interception
+- Key ONLY in profile .env (never in config/roster/logs/scripts/reports)
+- State machine illegal migration rejection
+```
+
+---
+**Execution**: Manager A2A call only, no direct Worker connection.  
+**Output per round**: State overview only, no code writing.

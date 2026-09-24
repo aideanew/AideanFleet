@@ -1,0 +1,41 @@
+# ===== 凭据与本地配置（绝不入库）=====
+secrets/
+.env
+.env.bak*
+.env.*.bak
+*.pem
+*.key
+
+# ===== 运行时数据（DB/事件流/证据/记忆/通知位点）=====
+data/
+
+# ===== 会话与临时产物 =====
+.box-agent/
+.box-agent-scratch/
+.workbuddy/
+.pytest_cache/
+__pycache__/
+*.pyc
+2026-09-16-*/
+body.json
+image*.png
+
+# ===== 虚拟环境 =====
+.venv/
+
+# ===== 构建产物 =====
+dist/
+dist-mock/
+node_modules/
+*.egg-info/
+.pytest_cache-mock/
+
+# ===== 兄弟项目产物（正文不入本仓库，仅在 .docs 中留指针）=====
+# Aidean / AideanBot 讨论稿存档，仅本地保留
+DELIVERY/
+# 兄弟项目工作台与文档
+.cluster/
+
+# ===== Agent 会话产物 =====
+.openclaw/
+.openclaw-attachments/

@@ -1,0 +1,30 @@
+{
+  "task_started": {
+    "enabled": true,
+    "default_enabled": false
+  },
+  "task_completed": {
+    "enabled": true,
+    "default_enabled": true
+  },
+  "manager_quota_low": {
+    "enabled": true,
+    "default_enabled": true
+  },
+  "worker_quota_low": {
+    "enabled": true,
+    "default_enabled": true
+  },
+  "task_escalated": {
+    "enabled": true,
+    "default_enabled": true
+  },
+  "daily_summary": {
+    "enabled": false,
+    "default_enabled": false
+  },
+  "task_failed": {
+    "enabled": true,
+    "default_enabled": true
+  }
+}

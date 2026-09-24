@@ -1,0 +1,132 @@
+==========================================================================
+UI-03R §9.4 notify 证据采集 · BASE = http://127.0.0.1:5050
+==========================================================================
+
+### POST /api/session  (project=AideanFleet)
+HTTP 200
+{
+  "ok": true,
+  "token": "d77e785800d17cd20deff99b0b22574c",
+  "project": "AideanFleet",
+  "expires_in": 3600
+}
+
+### GET /api/config/notify  (4 项可写开关的真实值)
+HTTP 200
+{
+  "ok": true,
+  "section": "notify",
+  "data": {
+    "on_task_start": true,
+    "on_task_end": true,
+    "on_manager_quota": true,
+    "on_role_quota": true
+  },
+  "source": "E:\\Code\\AideanFleet\\.env",
+  "mtime": "2026-09-15T20:59:10+08:00"
+}
+
+[命中] source = E:\Code\AideanFleet\.env
+[命中] mtime  = 2026-09-15T20:59:10+08:00
+
+### POST /api/config/notify  (写入 on_task_start=False)
+HTTP 200
+{
+  "ok": true,
+  "section": "notify",
+  "applied": {
+    "on_task_start": false
+  },
+  "ignored": [],
+  "mtime": "2026-09-15T20:59:42+08:00"
+}
+
+### GET /api/config/notify  (回读，验证真实落盘)
+HTTP 200
+{
+  "ok": true,
+  "section": "notify",
+  "data": {
+    "on_task_start": false,
+    "on_task_end": true,
+    "on_manager_quota": true,
+    "on_role_quota": true
+  },
+  "source": "E:\\Code\\AideanFleet\\.env",
+  "mtime": "2026-09-15T20:59:42+08:00"
+}
+
+[结论] 写入后回读一致（后端真实持久化）：True
+
+### POST /api/config/notify  (还原 on_task_start=True)
+HTTP 200
+{
+  "ok": true,
+  "section": "notify",
+  "applied": {
+    "on_task_start": true
+  },
+  "ignored": [],
+  "mtime": "2026-09-15T20:59:42+08:00"
+}
+
+### GET /api/notify/triggers  (2 项只读开关的真实值)
+HTTP 200
+{
+  "ok": true,
+  "data": {
+    "task_started": {
+      "enabled": true,
+      "default_enabled": false
+    },
+    "task_completed": {
+      "enabled": true,
+      "default_enabled": true
+    },
+    "manager_quota_low": {
+      "enabled": true,
+      "default_enabled": true
+    },
+    "worker_quota_low": {
+      "enabled": true,
+      "default_enabled": true
+    },
+    "task_escalated": {
+      "enabled": true,
+      "default_enabled": true
+    },
+    "daily_summary": {
+      "enabled": false,
+      "default_enabled": false
+    },
+    "task_failed": {
+      "enabled": true,
+      "default_enabled": true
+    }
+  },
+  "source": "E:\\Code\\AideanFleet\\config\\notifications.json"
+}
+[命中] task_escalated: enabled=True default_enabled=True
+[命中] daily_summary: enabled=False default_enabled=False
+
+### POST /api/config/notify  (尝试写入只读 2 项 → 预期被拒)
+HTTP 200
+{
+  "ok": true,
+  "section": "notify",
+  "applied": {},
+  "ignored": [
+    "task_escalated",
+    "daily_summary"
+  ],
+  "mtime": "2026-09-15T20:59:42+08:00"
+}
+
+[结论] 后端对只读 2 项无写路径（全部 in ignored）：True
+
+==========================================================================
+汇总
+  · 4 项可写开关走 /api/config/notify，真实落 .env        : PASS
+  · 2 项只读开关走 /api/notify/triggers，后端无写入端点  : PASS
+  · 前端零 localStorage 中继                            : 由 e2e refresh.spec.ts 覆盖
+==========================================================================

@@ -1,0 +1,34 @@
+{
+  "before": {
+    "aria": "true",
+    "cls": "switch on"
+  },
+  "afterClick": {
+    "aria": "false",
+    "cls": "switch"
+  },
+  "afterSecond": {
+    "aria": "true",
+    "cls": "switch on"
+  },
+  "apiBefore": {
+    "on_task_start": true,
+    "on_task_end": true,
+    "on_manager_quota": true,
+    "on_role_quota": true
+  },
+  "apiAfter": {
+    "on_task_start": true,
+    "on_task_end": true,
+    "on_manager_quota": true,
+    "on_role_quota": true
+  },
+  "logs": [
+    {
+      "console": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "console": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    }
+  ]
+}

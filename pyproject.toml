@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aideanfleet"
+version = "0.3.0"
+description = "AideanFleet - 自研薄 Control Plane + 可插拔执行体的自动化执行器（控制台 / 调度 / 治理 / 可靠性守望）"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+]
+
+[project.scripts]
+fleet = "fleet.launcher.cli_start:main"
+
+[tool.setuptools]
+packages = { find = { include = ["fleet*"] } }
+
+[tool.setuptools.package-data]
+"fleet.console" = ["dist/**/*", "web/**/*"]
+"fleet.prompts" = ["*.md"]

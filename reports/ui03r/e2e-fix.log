@@ -1,0 +1,51 @@
+
+Running 18 tests using 1 worker
+
+  ok  1 [chromium] › specs\governance.spec.ts:27:3 › 9.5 审批中心 › 数据源如实标注：404 时必须显示「后端未就绪」而非伪装已对接 (689ms)
+  ok  2 [chromium] › specs\governance.spec.ts:49:3 › 9.5 审批中心 › 审批通过：状态由待审批变为已通过，统计联动 (766ms)
+  x   3 [chromium] › specs\governance.spec.ts:82:3 › 9.5 审批中心 › 状态筛选可用：待审批筛选下每一行都是待审批 (15.7s)
+  ok  4 [chromium] › specs\governance.spec.ts:101:3 › 9.5 成本面板 › 三级预算卡片：剩余 = 限值 - 已用，百分比数学自洽 (731ms)
+  ok  5 [chromium] › specs\governance.spec.ts:124:3 › 9.5 成本面板 › 用量总览等于按日用量之和（同口径聚合） (662ms)
+  ok  6 [chromium] › specs\governance.spec.ts:152:3 › 9.5 成本面板 › 超限/预警级别有明确视觉标注，且不出现 undefined (569ms)
+  ok  7 [chromium] › specs\reconnect.spec.ts:13:3 › 9.2 断网注入 · 重连与增量补拉 › 断网后连接态离开已连接，恢复后自动回到 WebSocket 已连接 (1.6s)
+  ok  8 [chromium] › specs\reconnect.spec.ts:32:3 › 9.2 断网注入 · 重连与增量补拉 › 持续断网触发轮询降级；恢复后增量补拉（since>0）真实发生 (1.6s)
+  ok  9 [chromium] › specs\reconnect.spec.ts:64:3 › 9.2 断网注入 · 重连与增量补拉 › 断网期间的对话历史在恢复后不丢失（不截断） (4.7s)
+  ok 10 [chromium] › specs\refresh.spec.ts:27:3 › 9.3 跨刷新持久化 › 刷新后会话保持：不回落锁屏，且停留在原路由 (694ms)
+  ok 11 [chromium] › specs\refresh.spec.ts:41:3 › 9.3 跨刷新持久化 › 面板宽度按 localStorage 持久值恢复 (705ms)
+  ok 12 [chromium] › specs\refresh.spec.ts:59:3 › 9.3 跨刷新持久化 › 调度模式为服务端状态：刷新后由服务端值水合（用例结束复原） (785ms)
+  ok 13 [chromium] › specs\refresh.spec.ts:82:3 › 9.3 跨刷新持久化 › 可写开关为服务端状态：保存后刷新仍生效（并绕过 UI 直查接口核对） (870ms)
+  ok 14 [chromium] › specs\refresh.spec.ts:108:3 › 9.3 跨刷新持久化 › 只读开关取后端真实值：与 /api/notify/triggers 一致且不可写 (692ms)
+  ok 15 [chromium] › specs\refresh.spec.ts:132:3 › 9.3 跨刷新持久化 › 零本地存储中继：操作开关后不产生任何 notify 相关 localStorage 键 (814ms)
+  ok 16 [chromium] › specs\stream.spec.ts:22:3 › 9.6 stream_chunk 增量渲染 › 注入增量帧：实时气泡逐帧累积文本，并如实标注来源与帧数 (734ms)
+  ok 17 [chromium] › specs\stream.spec.ts:39:3 › 9.6 stream_chunk 增量渲染 › done=false 时持续累积且保持活动态；done=true 后停止活动态但保留文本 (656ms)
+  ok 18 [chromium] › specs\stream.spec.ts:60:3 › 9.6 stream_chunk 增量渲染 › chat_reply 落库后清空增量缓冲，避免与历史气泡重复 (2.6s)
+
+
+  1) [chromium] › specs\governance.spec.ts:82:3 › 9.5 审批中心 › 状态筛选可用：待审批筛选下每一行都是待审批 ─────────────────
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: getByTestId('approval-row').locator('.badge').first().nth(1)
+    Expected substring: "待审批"
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" getByTestId('approval-row').locator('.badge').first().nth(1) with timeout 15000ms
+      - waiting for getByTestId('approval-row').locator('.badge').first().nth(1)
+
+
+      93 |     const count = await page.getByTestId('approval-row').count()
+      94 |     for (let i = 0; i < count; i += 1) {
+    > 95 |       await expect(badges.nth(i)).toContainText('待审批')
+         |                                   ^
+      96 |     }
+      97 |   })
+      98 | })
+        at E:\Code\AideanFleet\tests-e2e\specs\governance.spec.ts:95:35
+
+    Error Context: e2e-out\20260915125751\governance-9-5-审批中心-状态筛选可用：待审批筛选下每一行都是待审批-chromium\error-context.md
+
+  1 failed
+    [chromium] › specs\governance.spec.ts:82:3 › 9.5 审批中心 › 状态筛选可用：待审批筛选下每一行都是待审批 ──────────────────
+  17 passed (39.8s)

@@ -1,0 +1,8 @@
+{"project": "default", "actor": "Manager", "action": "step_done", "taskId": "", "summary": "接收指令完成", "url": "", "seq": 1, "timestamp": "2026-09-15T14:11:35.810+08:00"}
+{"project": "default", "actor": "用户", "action": "chat", "summary": "请把登录页改为手机号登录", "seq": 2, "timestamp": "2026-09-15T14:11:36.103+08:00", "taskId": "", "url": ""}
+{"project": "default", "actor": "Manager", "action": "chat_reply", "summary": "【Manager·回执】已收到你的指令：「请把登录页改为手机号登录」。当前 fleet/core 尚未接入，本条为控制端 mock 回执；接入后我会据此实时修正任务计划。", "seq": 3, "timestamp": "2026-09-15T14:11:36.104+08:00", "taskId": "", "url": ""}
+{"project": "default", "actor": "用户", "action": "mode_change", "summary": "切换为「自动执行」", "seq": 4, "timestamp": "2026-09-15T14:11:36.166+08:00", "taskId": "", "url": ""}
+{"project": "default", "actor": "用户", "action": "mode_change", "summary": "切换为「每步确认」", "seq": 5, "timestamp": "2026-09-15T14:11:36.259+08:00", "taskId": "", "url": ""}
+{"project": "default", "actor": "Manager", "action": "step_done", "taskId": "", "summary": "分析需求完成", "url": "", "seq": 6, "timestamp": "2026-09-15T14:16:17.016+08:00"}
+{"project": "default", "actor": "用户", "action": "chat", "summary": "前端验证：请优先修复登录页样式", "seq": 7, "timestamp": "2026-09-15T14:19:39.338+08:00", "taskId": "", "url": ""}
+{"project": "default", "actor": "Manager", "action": "chat_reply", "summary": "【Manager·回执】已收到你的指令：「前端验证：请优先修复登录页样式」。当前 fleet/core 尚未接入，本条为控制端 mock 回执；接入后我会据此实时修正任务计划。", "seq": 8, "timestamp": "2026-09-15T14:19:39.339+08:00", "taskId": "", "url": ""}

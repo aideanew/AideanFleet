@@ -1,0 +1,135 @@
+# Hermes 舰队 v3 · 启动提示词与验收测试（复制即用）
+
+> 测试前置：先跑 `python E:\Code\AideanCompany\fleet\tools\restart_console_v3.py`，
+> 横幅出现 `控制台 v3 (3.1.0-launchbus)` 再开始。T0 不过就停，全是旧进程问题。
+
+## 一、5 个场景的启动提示词（贴给 hermes / hermes-ide / 任意 CLI 会话）
+
+### 场景1 · 需求文档已备好，逐一做到全绿
+
+```text
+你是 AideanAgentFleet 通用启动执行器。行为协议唯一来源：
+E:\Code\AideanCompany\fleet\prompts\executor.template.md（先完整读完再动手）。
+测试环境设 TEST_FLEET_ENV=1：禁用 v3/gpt-6-astra，你自己用 agnes-3.0-flash 口径汇报。
+CLI 一律最高权限启动（claude --dangerously-skip-permissions 等，见协议 §1）。
+模型 429/超时：每 10 秒重试，最多 10 次，10 次仍败换下一候选（协议 §7/§10）。
+进度实时写 POST http://127.0.0.1:5000/api/launch-event 并在对话插一行，终局输出
+| 角色 | 平台 | 模型 | 任务 | 评分 | 完成度表（协议 §14）。
+
+[fleet-launch]
+project: AideanBot
+mode: run
+tasks: all
+requirements: @E:/Code/AideanBot/.docs/PRD.md
+port: 3333
+notes: PRD 已备好，按 project.json 的 plan/acceptance 逐一完成直到全绿；先出 RUN CARD 再派工；只允许三个合法中断点（项目歧义/plan门yes/ESCALATED），其他一律陈述句推进。
+```
+
+### 场景2 · 只给一段话需求（intake 自动补 PRD）
+
+```text
+（同上协议前言，替换下面启动块）
+
+[fleet-launch]
+project: <新项目名或已有pid>
+mode: intake
+requirements: 我要实现以下需求：<把 XXXXXXX 换成你的需求原文>
+port: 3333
+notes: 先派 pm-1 产出 PRD+可机器判定 acceptance 并回读确认落盘，然后自动转 plan→等一次 yes→run；PRD 含糊处列"待确认"进 RUN CARD，不臆测。
+```
+
+### 场景3 · 检查遗漏 + 测试 + 修复（audit）
+
+```text
+（同上协议前言）
+
+[fleet-launch]
+project: AideanBot
+mode: audit
+notes: 并行派多视角只读体检（前端/后端/破坏者/QA，含起服务真实运行），产出 defects.md 编号+复现+证据；按 P0>P1>P2 拆修复包派回原 owner；worker-c 回归；终态门=defects 全闭环或带证据 BLOCKED。全程禁写业务代码直到修复包正式派出。
+```
+
+### 场景4 · 多 agent 圆桌需求分析（discuss，claude前端/codex后端/opencode产品）
+
+```text
+（同上协议前言）
+
+[fleet-launch]
+project: <项目名或路径>
+mode: discuss
+seats: product=opencode/modelscope/ZhipuAI/GLM-5.2,frontend=claude,backend=codex
+notes: 回合制开会（≤3轮，read-only 不写码）：R1各席立场→R2交叉质询→R3主持人合并需求分析稿；逐席原文落盘 transcript；分歧点+建议+需拍板项抛给我；我拍板后稿转 PRD 续 intake/run。席位映射仅本模式内生效，退出恢复 cli-delegation.md 默认。
+```
+
+### 场景5 · 自选模型 + 限额自动切换
+
+```text
+（同上协议前言）
+
+[fleet-launch]
+project: AideanBot
+mode: run
+model: auto
+notes: 用 fleet/configs/model-pool.json 按 priority+health 自行定每角色模型；探活只读 GET /models；429/5xx/超时→10s×10 次仍败才切换，401/配额耗尽/model_not_found 直接切换；切换记 launch:model_switch（含 attempts）并在完成度表如实记 from→to；全候选耗尽→BLOCKED 附各家失败原因。Key 只用 env/key_file 间接引用，任何输出禁止明文 Key。
+```
+
+## 二、T0–T10 验收测试命令（第三方工具执行）
+
+```powershell
+# T0 版本门
+curl.exe -s http://127.0.0.1:5000/api/health
+# PASS: version="3.1.0-launchbus" 且 launch_routes 含两条新路由；无则旧进程，停测。
+
+# T1 回归·计划快照
+curl.exe -s "http://127.0.0.1:5000/api/plan?project=P-004"
+# PASS: 200，project="P-004"，tasks 含 T-026/T-027/T-028/T-029，每任务有 id/state/assignee/reviewer/verify_cmd。
+
+# T2 回归·事件流旧字段
+curl.exe -s "http://127.0.0.1:5000/api/events?project=P-004&since=0&limit=3"
+# PASS: 200，顶层含 seq/project/events；events 非空则每条必含旧字段 seq/timestamp/actor/action/taskId/summary/url。
+
+# T3 新功能·BOOT 解析
+curl.exe -s "http://127.0.0.1:5000/api/launch-resolve?project=P-004&mode=plan&port=3333"
+# PASS: 200 JSON，ok=true, mode=plan, ui_url=http://127.0.0.1:3333,
+#       profile_source=projects/P-004/project.json, missing=[]。返回 500/HTML 即 FAIL。
+
+# T4 新功能·未知项目机读错误
+curl.exe -s "http://127.0.0.1:5000/api/launch-resolve?project=P-999"
+# PASS: 200 + ok=false + reason=project_not_found。404/500/HTML 即 FAIL。
+
+# T5 新功能·事件总线（A写 B新索引 C旧流）
+curl.exe -s -X POST http://127.0.0.1:5000/api/launch-event -H "Content-Type: application/json" -d "{\"project\":\"P-004\",\"phase\":\"third_party_probe\",\"detail\":\"third_party_probe_DO_NOT_TRUST\",\"role\":\"worker-b\",\"cli\":\"claude\",\"model\":\"claude-default\",\"percent\":\"0\"}"
+# A PASS: {"ok":true,...}
+curl.exe -s "http://127.0.0.1:5000/api/launch-event?project=P-004&since=0&limit=5"
+# B PASS: 尾条 action=launch:third_party_probe 且带 phase/cli/model 字段
+curl.exe -s "http://127.0.0.1:5000/api/events?project=P-004&since=0&limit=5"
+# C PASS: 同样能读到该条（向后兼容），旧字段一个不少。
+
+# T6 非法事件被拒且不污染审计
+curl.exe -s "http://127.0.0.1:5000/api/events?project=P-004&since=0&limit=1"
+# 记下返回的 seq 为 S
+curl.exe -s -X POST http://127.0.0.1:5000/api/launch-event -H "Content-Type: application/json" -d "{\"phase\":\"bad_probe\",\"detail\":\"x\"}"
+# PASS: {"ok":false} + HTTP 400
+curl.exe -s "http://127.0.0.1:5000/api/events?project=P-004&since=S&limit=5"
+# PASS: 顶层 seq 未增长、events 无非预期新行。
+
+# T7 重试口径（读配置）
+# 打开 fleet/configs/model-pool.json → retry.rule 必须是"10 秒 × 10 次 → 换模型"，
+# 且 hard_signals 含 401/402/403/quota_exhausted/model_not_found（硬失败直接换不空耗 10 次）。
+
+# T8 完成度表契约（读配置）
+# 打开同一文件 final_report_contract：columns 必须= ["角色","平台","模型","任务","评分"]，
+# grade_scale= 圆满/有返工/部分完成有缺口/受阻未产出/未派工，且禁止自评。
+
+# T9 模型池探活
+python E:\Code\AideanCompany\fleet\tools\probe_pool.py
+# PASS: 退出 0；amd/nvidia/modelscope/sensenova/agnes=ok；bai 401、v3 no_key 属预期
+#（测试禁 GPT-6 且 bai key 待更新），写明"不勉强"；已写 console/state/model_pool_state.json。
+
+# T10 测试环境禁 GPT-6
+# 打开 fleet/projects/P-004/project.json → test_env.blocklist 含 "v3/gpt-6-astra"、
+# admin_model=agnes-3.0-flash；model-pool.json → v3.env_scope=["prod"]。
+
+# 全栈启动一键（幂等，含控制台/Manager/全员网关/池探活/CLI探活与最高权限启动行打印）
+python E:\Code\AideanCompany\fleet\tools\restart_console_v3.py
+```

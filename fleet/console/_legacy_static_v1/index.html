@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AideanFleet 控制台</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- ============ 锁屏页 ============ -->
+<div id="lockscreen" class="lockscreen">
+  <div class="lock-card">
+    <div class="lock-logo">◈</div>
+    <h1 class="lock-title">AideanFleet 控制台</h1>
+    <input id="lock-project" type="text" placeholder="项目名（如 AideanFleet）" autocomplete="off"
+           list="project-list">
+    <datalist id="project-list"></datalist>
+    <button id="lock-btn" class="btn btn-primary btn-block">解 锁</button>
+    <div id="lock-error" class="lock-error"></div>
+  </div>
+</div>
+
+<!-- ============ 主界面 ============ -->
+<div id="app" class="app hidden">
+
+  <!-- 顶部栏：右上角顺序固定为 锁定键 → 设置按钮 -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="logo">◈ AideanFleet</span>
+      <button id="project-btn" class="project-badge" title="切换项目">项目：<span id="topbar-project"></span> ⇄</button>
+      <span id="run-state" class="conn-status">● 待启动</span>
+      <span id="conn-status" class="conn-status conn-ok">● 已连接</span>
+    </div>
+    <div class="topbar-right">
+      <button id="lock-now" class="btn btn-ghost" title="立即锁定（回锁屏）">🔒 锁定</button>
+      <div class="settings-wrap">
+        <button id="settings-btn" class="btn btn-ghost" title="设置">⚙ 设置</button>
+        <div id="settings-panel" class="settings-panel hidden">
+          <h3>设置</h3>
+          <label>请求超时（秒）<input id="set-timeout" type="number" min="1"></label>
+          <label>请求重试次数<input id="set-retry" type="number" min="0"></label>
+          <label>重试等待（秒）<input id="set-retry-delay" type="number" min="1"></label>
+          <label>锁屏有效期（分钟）<input id="set-lock-ttl" type="number" min="1"></label>
+          <button id="settings-save" class="btn btn-primary btn-block">保存设置</button>
+          <div id="settings-note" class="settings-note"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 三栏主体 -->
+  <div class="main">
+
+    <!-- 左侧菜单（可彻底缩起为图标条；边缘可拖拽） -->
+    <nav id="sidebar" class="sidebar">
+      <div class="side-head">
+        <span class="side-title">导航</span>
+        <button id="menu-collapse" class="collapse-btn" title="缩起菜单">◀</button>
+      </div>
+      <ul id="menu" class="menu"></ul>
+    </nav>
+    <div id="sidebar-resizer" class="resizer" title="拖动调整菜单宽度"></div>
+
+    <!-- 中间内容 -->
+    <main class="content">
+
+      <!-- 总览 -->
+      <section id="page-overview" class="page">
+        <div class="page-head">
+          <h2>总览</h2>
+          <span class="page-hint">主体永远显示正在执行的阶段；已结束的阶段自动上移并缩起，点击可展开回看</span>
+          <div class="mode-switch" id="mode-switch">
+            <button data-mode="step" class="btn btn-toggle active">每步确认</button>
+            <button data-mode="auto" class="btn btn-toggle">自动执行</button>
+          </div>
+        </div>
+        <div id="overview-scroll" class="overview-scroll"></div>
+        <div id="confirm-bar" class="confirm-bar">
+          <input id="confirm-input" type="text" placeholder="输入你的意见，或直接点确认继续…">
+          <button id="confirm-note" class="btn btn-ghost">提交意见</button>
+          <button id="confirm-ok" class="btn btn-primary">确认</button>
+        </div>
+      </section>
+
+      <!-- 对话 -->
+      <section id="page-chat" class="page hidden">
+        <div class="page-head"><h2>对话</h2><span class="page-hint">程序执行期间，可随时与 Manager 实时交流、修正任务</span></div>
+        <div id="chat-idle" class="idle-banner hidden">程序当前未运行，对话暂不可用</div>
+        <div id="chat-list" class="chat-list"></div>
+        <div class="chat-bar">
+          <input id="chat-input" type="text" placeholder="给 Manager 发送指令或修正信息…">
+          <button id="chat-send" class="btn btn-primary">发送</button>
+        </div>
+      </section>
+
+      <!-- 模型 -->
+      <section id="page-models" class="page hidden">
+        <div class="page-head"><h2>模型</h2><span class="page-hint">模型池：level 数字越小越优先；额度不足/报错自动切下一个</span></div>
+        <div id="models-cards" class="cards"></div>
+        <div class="page-actions">
+          <button id="models-add" class="btn btn-ghost">＋ 新增模型</button>
+          <button id="models-template" class="btn btn-ghost" title="用 .env.example 的模型池覆盖当前配置">载入示例模型池</button>
+          <button id="models-save" class="btn btn-primary">保存模型配置</button>
+        </div>
+      </section>
+
+      <!-- 角色 -->
+      <section id="page-roles" class="page hidden">
+        <div class="page-head"><h2>角色</h2><span class="page-hint">默认：1 产品+UI、1 前端、1 数据交互、2 后端、1 审查（可增删改）</span></div>
+        <div id="roles-cards" class="cards"></div>
+        <div class="page-actions">
+          <button id="roles-add" class="btn btn-ghost">＋ 新增角色</button>
+          <button id="roles-template" class="btn btn-ghost">载入示例角色组</button>
+          <button id="roles-save" class="btn btn-primary">保存角色配置</button>
+        </div>
+      </section>
+
+      <!-- 执行体 -->
+      <section id="page-executors" class="page hidden">
+        <div class="page-head"><h2>执行体</h2><span class="page-hint">真正干活的智能体（claudecode / codex / opencode / hermes / cline / gemini / grok…）及其启动命令</span></div>
+        <div id="executors-cards" class="cards"></div>
+        <div class="page-actions">
+          <button id="executors-add" class="btn btn-ghost">＋ 新增执行体</button>
+          <button id="executors-template" class="btn btn-ghost">载入示例执行体</button>
+          <button id="executors-save" class="btn btn-primary">保存执行体配置</button>
+        </div>
+      </section>
+
+      <!-- 拓展 -->
+      <section id="page-extensions" class="page hidden">
+        <div class="page-head"><h2>拓展</h2><span class="page-hint">为每个执行体勾选可用的 skills 与 mcp</span></div>
+        <div id="extensions-cards" class="cards"></div>
+        <div class="page-actions">
+          <button id="extensions-save" class="btn btn-primary">保存拓展配置</button>
+        </div>
+      </section>
+
+      <!-- 消息 -->
+      <section id="page-message" class="page hidden">
+        <div class="page-head"><h2>消息</h2><span class="page-hint">邮箱提醒参数（写 .env email 段）与触发时机（写 notify 段）</span></div>
+        <div class="cards">
+        <div class="form-card">
+          <h3>SMTP 参数</h3>
+          <div class="grid2">
+            <label>启用邮件提醒<select id="msg-enabled"><option value="false">关闭</option><option value="true">开启</option></select></label>
+            <label>SMTP 服务器<input id="msg-host" type="text" placeholder="smtp.163.com"></label>
+            <label>SMTP 端口<input id="msg-port" type="number" placeholder="465"></label>
+            <label>使用 SSL<select id="msg-use_ssl"><option value="true">是</option><option value="false">否</option></select></label>
+            <label>发件邮箱<input id="msg-sender" type="text"></label>
+            <label>收件邮箱<input id="msg-receiver" type="text" placeholder="164093410@qq.com"></label>
+            <label>邮箱授权码
+              <div class="secret-row">
+                <input id="msg-auth_code" type="password" placeholder="${VAR} 占位；真值放环境变量">
+                <button type="button" class="reveal" id="msg-auth-reveal" title="显示 / 隐藏">👁</button>
+              </div>
+            </label>
+          </div>
+          <h3 class="sub">提醒时机</h3>
+          <div class="checks">
+            <label><input id="msg-on_task_start" type="checkbox"> 任务开始时（默认关）</label>
+            <label><input id="msg-on_task_end" type="checkbox"> 任务结束时（默认开）</label>
+            <label><input id="msg-on_manager_quota" type="checkbox"> Manager 模型额度不够时（默认开）</label>
+            <label><input id="msg-on_role_quota" type="checkbox"> 执行角色模型额度不够时（默认开）</label>
+          </div>
+          <h3 class="sub">更多触发项（角色C 的 config/notifications.json 管理，控制台只读）</h3>
+          <div id="msg-extra" class="checks"></div>
+          <div class="page-actions">
+            <button id="msg-save" class="btn btn-primary">保存消息配置</button>
+            <button id="msg-test" class="btn btn-ghost" disabled title="后端 /api/notify/test 尚未接入 fleet/notify（角色A/C）">发送测试邮件</button>
+          </div>
+        </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- 右侧进度条：未开始执行时整条隐藏；有显式缩起/展开按钮 -->
+    <div id="rail-resizer" class="resizer hidden" title="拖动调整进度条宽度"></div>
+    <aside id="rail" class="rail hidden">
+      <button id="rail-toggle" class="rail-toggle" title="缩起进度条">▸</button>
+      <div class="rail-title">执行进度</div>
+      <div id="rail-track" class="rail-track"></div>
+    </aside>
+
+  </div>
+</div>
+
+<div id="switch-dialog" class="modal-mask hidden">
+  <div class="modal">
+    <h3>切换项目</h3>
+    <p class="modal-hint">输入已注册的项目名（留空 = 用当前项目路径新建）</p>
+    <input id="switch-input" type="text" list="project-list" autocomplete="off">
+    <div id="switch-error" class="lock-error"></div>
+    <div class="page-actions">
+      <button id="switch-ok" class="btn btn-primary">切换</button>
+      <button id="switch-cancel" class="btn btn-ghost">取消</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

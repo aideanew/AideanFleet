@@ -1,0 +1,16 @@
+Error: [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":1609,"threshold":50,"scope":"turn","targets":["E:\\Code\\AideanFleet\\tests-e2e\\e2e-out"],"targetCount":1}
+
+   at C:\Users\EDY\AppData\Local\Programs\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:214
+
+  212 |         const detail = e && e.stderr ? String(e.stderr).trim() : '';
+  213 |         if (detail) {
+> 214 |             throw new Error(detail);
+      |                   ^
+  215 |         }
+  216 |         throw new Error(`[safe-delete][SAFE_DELETE_BULK_GUARD_ERROR] ${(e && e.message) || String(e)}`);
+  217 |     }
+    at checkBulkDeleteGuard (C:\Users\EDY\AppData\Local\Programs\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:214:19)
+    at tryTrash (C:\Users\EDY\AppData\Local\Programs\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:566:5)
+    at tryRm (C:\Users\EDY\AppData\Local\Programs\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:747:5)
+    at Object.wrappedPromisesRm (C:\Users\EDY\AppData\Local\Programs\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\node-safe-delete-shim.cjs:791:15)
+
