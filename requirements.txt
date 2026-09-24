@@ -3,5 +3,5 @@
 fastapi==0.141.1          # fleet/console/server.py（Web 控制台）
 uvicorn[standard]==0.53.0 # fleet/console/server.py main()（ASGI 服务）
 websockets==17.1.0        # /ws 实时通道（uvicorn[standard] 亦携带，显式声明保证测试可用）
-httpx==0.28.1             # fastapi.testclient（tests/core/test_server_api.py）运行时依赖
+httpx2>=2.13.1            # fastapi.testclient 推荐的 HTTP 客户端（替代已废弃的 httpx）
 pytest==9.1.1             # 测试框架（python -m pytest tests -q）

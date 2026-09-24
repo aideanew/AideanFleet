@@ -15,6 +15,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -37,7 +38,64 @@ DIST_DIR = CONSOLE_DIR / "dist"
 STATIC_DIR = CONSOLE_DIR / "static"
 
 _START_TIME = time.time()
-app = FastAPI(title="AideanFleet Console", version=VERSION)
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    fleet_config.allow_write(True)  # 控制台进程允许写 .env；引擎侧保持只读
+    if not _frontend_built():
+        print("⚠️  前端未构建，控制台将白屏。请运行: cd fleet/console/web && pnpm install && pnpm build")
+    try:  # REL-01：事件归档轮转 + 卡死扫描（幂等，失败不阻塞启动）
+        from fleet.rel import maintenance
+
+        maintenance.start()
+    except Exception:
+        pass
+    if _SCHEDULER_ENABLED:
+        # 服务重启后内存态（_active_loops/bus.mode）丢失：对存在非终态任务的项目恢复调度循环，
+        # 否则重启后没有任何 run_loop 在跑，DRAFT/SUBMITTED 任务永远无人推进（此前实测断链）。
+        import asyncio as _asyncio
+
+        _ACTIVE_STATES = ("DRAFT", "ASSIGNED", "DOING", "SUBMITTED", "REWORK")
+        for _p in db.list_projects():
+            _pid = str(_p.get("project_id") or "")
+            if not _pid:
+                continue
+            # notify watch 循环对所有项目拉起（与是否有活跃任务无关）：
+            # 终态项目的事件补发/后续升级事件仍需邮件通知；此前只有 launch_core 启动的项目才有监控，
+            # 重启后 watch 缺失导致任务终态事件永远不发邮件（实测 Test09161119 无 last_seq）。
+            try:
+                from fleet.notify.triggers import watch_events_loop as _watch, get_trigger as _get_trigger
+
+                threading.Thread(
+                    target=lambda pid=_pid: _watch(pid, _get_trigger()),
+                    daemon=True,
+                    name=f"watch-{_pid}",
+                ).start()
+            except Exception:
+                pass  # notify 不可用不阻塞调度恢复
+            _tasks = db.list_tasks(_pid)
+            if not any(t.get("exec_status") in _ACTIVE_STATES for t in _tasks):
+                continue
+            with _loops_lock:
+                if _pid in _active_loops:
+                    continue
+                _active_loops.add(_pid)
+                threading.Thread(
+                    target=lambda pid=_pid: asyncio.run(scheduler.run_loop(bus, project_id=pid)),
+                    daemon=True,
+                ).start()
+            events.append(
+                actor="console",
+                action="scheduler:resumed",
+                summary=f"服务重启：项目 {_pid} 调度循环已恢复",
+                project=_pid,
+            )
+    if _SCHEDULER_ENABLED:
+        asyncio.create_task(
+            scheduler.run_loop(bus, on_outcome=lambda item: broadcast({"type": "task_update", "dispatch": item}))
+        )
+    yield
+
+app = FastAPI(title="AideanFleet Console", version=VERSION, lifespan=_lifespan)
 
 #: 调度总线：控制台（HTTP/WS）写模式与确认，run_loop 消费
 #: 初始模式可经 .env 的 FLEET_SCHEDULER_MODE 恢复（服务重启后内存态丢失，用户口径 auto 时配置 auto）
@@ -1292,66 +1350,6 @@ def _handle_ws_confirm(session: dict[str, Any], message: dict[str, Any]) -> dict
 
 # ---------------------------------------------------------------------------
 # 启动
-# ---------------------------------------------------------------------------
-
-
-@app.on_event("startup")
-def _on_startup() -> None:
-    fleet_config.allow_write(True)  # 控制台进程允许写 .env；引擎侧保持只读
-    if not _frontend_built():
-        print("⚠️  前端未构建，控制台将白屏。请运行: cd fleet/console/web && pnpm install && pnpm build")
-    try:  # REL-01：事件归档轮转 + 卡死扫描（幂等，失败不阻塞启动）
-        from fleet.rel import maintenance
-
-        maintenance.start()
-    except Exception:
-        pass
-    if _SCHEDULER_ENABLED:
-        # 服务重启后内存态（_active_loops/bus.mode）丢失：对存在非终态任务的项目恢复调度循环，
-        # 否则重启后没有任何 run_loop 在跑，DRAFT/SUBMITTED 任务永远无人推进（此前实测断链）。
-        import asyncio as _asyncio
-
-        _ACTIVE_STATES = ("DRAFT", "ASSIGNED", "DOING", "SUBMITTED", "REWORK")
-        for _p in db.list_projects():
-            _pid = str(_p.get("project_id") or "")
-            if not _pid:
-                continue
-            # notify watch 循环对所有项目拉起（与是否有活跃任务无关）：
-            # 终态项目的事件补发/后续升级事件仍需邮件通知；此前只有 launch_core 启动的项目才有监控，
-            # 重启后 watch 缺失导致任务终态事件永远不发邮件（实测 Test09161119 无 last_seq）。
-            try:
-                from fleet.notify.triggers import watch_events_loop as _watch, get_trigger as _get_trigger
-
-                threading.Thread(
-                    target=lambda pid=_pid: _watch(pid, _get_trigger()),
-                    daemon=True,
-                    name=f"watch-{_pid}",
-                ).start()
-            except Exception:
-                pass  # notify 不可用不阻塞调度恢复
-            _tasks = db.list_tasks(_pid)
-            if not any(t.get("exec_status") in _ACTIVE_STATES for t in _tasks):
-                continue
-            with _loops_lock:
-                if _pid in _active_loops:
-                    continue
-                _active_loops.add(_pid)
-                threading.Thread(
-                    target=lambda pid=_pid: asyncio.run(scheduler.run_loop(bus, project_id=pid)),
-                    daemon=True,
-                ).start()
-            events.append(
-                actor="console",
-                action="scheduler:resumed",
-                summary=f"服务重启：项目 {_pid} 调度循环已恢复",
-                project=_pid,
-            )
-    if _SCHEDULER_ENABLED:
-        asyncio.get_event_loop().create_task(
-            scheduler.run_loop(bus, on_outcome=lambda item: broadcast({"type": "task_update", "dispatch": item}))
-        )
-
-
 def main() -> None:
     import uvicorn
 
