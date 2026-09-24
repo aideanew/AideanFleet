@@ -11,52 +11,39 @@ permissions:
 
 jobs:
   test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-        python-version: ['3.12']
-
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python 3.12
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: '3.12'
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -e .
-      shell: bash
 
     - name: Run tests
       id: pytest
       run: |
         python -m pytest tests --tb=long -v 2>&1 | tee pytest_output.txt
-      shell: bash
       continue-on-error: true
 
-    - name: Push output to ci-debug branch
+    - name: Upload output via GitHub API
       if: always()
       run: |
-        git config user.name "CI"
-        git config user.email "ci@localhost"
-        git checkout --orphan ci-debug
-        git rm -rf . 2>/dev/null || true
-        cp pytest_output.txt .
-        git add pytest_output.txt
-        git commit -m "CI output for ${{ github.sha }}"
-        git push origin ci-debug --force
+        CONTENT=$(base64 -w 0 pytest_output.txt)
+        curl -s -X PUT \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/repos/${{ github.repository }}/contents/ci_output.txt" \
+          -d "{\"message\":\"CI output for ${{ github.sha }}\",\"content\":\"$CONTENT\",\"branch\":\"main\"}"
       shell: bash
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Fail job if tests failed
       if: steps.pytest.outcome == 'failure'
       run: exit 1
-      shell: bash
