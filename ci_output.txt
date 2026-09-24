@@ -1,0 +1,18 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0 -- /opt/hostedtoolcache/Python/3.12.14/x64/bin/python
+cachedir: .pytest_cache
+rootdir: /home/runner/work/AideanFleet/AideanFleet
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collecting ... collected 1 item
+
+tests/core/test_scheduler.py::test_run_loop_step_mode_survives_dispatch_exception DEBUG dispatch T-10
+DEBUG dispatch T-10
+DEBUG boom T-9: state_before=ASSIGNED
+DEBUG boom T-9: state_after_DOING=DOING
+DEBUG dispatch_calls=['T-10', 'T-10', 'T-9']
+DEBUG persist_calls=[('T-9', 'DOING', '第一拍故障', 'BLOCKED')]
+DEBUG final_states={'T-9': 'BLOCKED', 'T-10': 'BLOCKED'}
+PASSED
+
+============================== 1 passed in 0.37s ===============================
