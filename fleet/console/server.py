@@ -362,8 +362,12 @@ def _config_alive() -> bool:
 
 
 def _frontend_built() -> bool:
-    """检查前端构建产物是否存在。"""
-    return (Path(__file__).parent / "web" / "dist" / "index.html").exists()
+    """检查前端构建产物是否存在。
+
+    Vite outDir 为 `../dist`（相对 web/）→ 实际输出 `fleet/console/dist`，
+    与 DIST_DIR 一致。曾误查 `web/dist` 导致已构建仍报未构建。
+    """
+    return (DIST_DIR / "index.html").exists() or (CONSOLE_DIR / "web" / "dist" / "index.html").exists()
 
 
 @app.get("/api/health")
