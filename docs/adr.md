@@ -6,6 +6,112 @@
 
 ---
 
+## ADR-001：不使用第三方 Agent 框架做核心 Orchestrator
+
+- 状态：ACCEPTED
+- 原文（`初始设计/d7.md`）：不用 MetaGPT/CrewAI/LangGraph/Mastra/OpenClaw 做核心 Orchestrator。
+- 理由：这些框架的抽象层（Role/Task/Crew）与本项目"契约驱动+事件溯源+Machine Gate"的控制面设计冲突，
+  引入它们会导致双控制流并存的复杂性。自研薄 Control Plane 更可控。
+- 裁决日期：2026-09-10（d7.md 收敛建议冻结）
+
+## ADR-002：Python 3.11+ 自研薄 Control Plane
+
+- 状态：ACCEPTED
+- 原文（`初始设计/d7.md`）：Python 3.11+ 自研薄 Control Plane。
+- 理由：Python 生态与 LLM 工具链（SDK/CLI）最贴合；3.11+ 提供 match 语句、异常组等特性。
+  "薄"意味着 Control Plane 只管调度/状态/事件，不碰业务逻辑。
+- 裁决日期：2026-09-10
+
+## ADR-003：所有 Coding Agent 视为 Worker Backend
+
+- 状态：ACCEPTED
+- 原文（`初始设计/d7.md`）：Claude Code / Codex / OpenCode / pi 全部视为 Worker Backend。
+- 理由：Agent 是执行资源，不是系统核心。统一通过 Adapter 层适配，差异隔离在 Adapter 内。
+- 裁决日期：2026-09-10
+
+## ADR-004：CLI 差异只能存在于 Adapter 层
+
+- 状态：ACCEPTED
+- 原文（`初始设计/d7.md`）：CLI 差异只能存在于 Adapter 层。
+- 理由：不同 Coding Agent CLI 的调用方式、输出格式、退出码各异，但 Manager 不应感知这些差异。
+  Adapter 模式保证核心逻辑不被 CLI 变更污染。
+- 裁决日期：2026-09-10
+
+## ADR-005：确定性恢复由 Policy Engine 执行
+
+- 状态：ACCEPTED
+- 原文（`初始设计/d7.md`）：确定性恢复由 Policy Engine 执行，Manager 不处理机械重试。
+- 理由：重试、降级、超时等恢复策略是确定性规则，不应由 Manager（可能调用 LLM）处理。
+  Policy Engine 作为纯函数闸门，按规则决定 retry/fail/escalate。
+- 裁决日期：2026-09-10
+
+## ADR-006：Machine Gate 权威高于 Agent 自述
+
+- 状态：ACCEPTED
+- 原文（`初始设计/d7.md`）：Machine Gate 权威高于 Agent 自述。
+- 理由：Agent 可能报告"任务完成"但实际产物不达标。Machine Gate（编译/测试/lint 等确定性检查）
+  的判定结果权威，Agent 自述仅作参考。这与 ADR-015"LLM 可以提出决策，但不能直接改变事实"一致。
+- 裁决日期：2026-09-10
+
+## ADR-007：Evidence immutable/raw-first
+
+- 状态：ACCEPTED
+- 原文（`初始设计/d7.md`）：Evidence immutable/raw-first，report.html 从事实数据生成。
+- 理由：验收依据必须是不可变的原始证据（stdout/stderr/exit code/产物文件），而非 Agent 的总结。
+  report.html 从原始证据数据生成，不作为权威源。
+- 裁决日期：2026-09-10
+
+## ADR-008：并发写任务使用独立 git worktree + Lease
+
+- 状态：ACCEPTED
+- 原文（`初始设计/d7.md`）：每个并发写任务使用独立 git worktree；共享资源使用 Lease。
+- 理由：多 Agent 并发写同一仓库会冲突。每任务一个 worktree 实现物理隔离；共享资源（如 DB）
+  通过 Lease 机制串行化访问。
+- 裁决日期：2026-09-10
+
+## ADR-009：SQLite 存状态，JSONL 存事件，filesystem 存 artifact
+
+- 状态：ACCEPTED
+- 原文（`初始设计/d7.md`）：SQLite 存状态，JSONL 存事件，filesystem 存 artifact/evidence。
+- 理由：三种存储各司其职——SQLite 支持事务和查询（任务状态）；JSONL append-only 不可变
+  （事件溯源）；filesystem 存大文件（产物、证据）。不引入消息中间件或 ORM。
+- 裁决日期：2026-09-10
+
+## ADR-011：MCP 不代替内部 Scheduler/Event Bus
+
+- 状态：ACCEPTED
+- 原文（`初始设计/d7.md`）：MCP 是未来工具协议，不拿 MCP 代替内部 Scheduler/Event Bus。
+- 理由：MCP（Model Context Protocol）适合工具调用场景，但本项目的事件总线和调度器
+  是确定性控制面组件，不应依赖外部协议。MCP 留作未来工具层接入。
+- 裁决日期：2026-09-10
+
+## ADR-012：OpenClaw 不进入开发工厂核心依赖
+
+- 状态：ACCEPTED
+- 原文（`初始设计/d7.md`）：OpenClaw 保留给未来运营/客服/常驻 Agent 层，不进入当前开发工厂核心依赖。
+- 理由：OpenClaw 作为常驻 Agent 适合运营/客服场景，但开发工厂的核心是"一次性任务编排"，
+  不需要常驻 Agent。保持核心依赖最小化。
+- 裁决日期：2026-09-10
+
+## ADR-013（留空未占用）
+
+> 编号保留，未分配决策内容。
+
+## ADR-014（留空未占用）
+
+> 编号保留，未分配决策内容。
+
+## ADR-015：组织智能层与执行控制层分离
+
+- 状态：ACCEPTED
+- 原文（`初始设计/d9.md`）：组织智能层（需求理解/规划/分工/任务生成/语义判断）与
+  执行控制层（DAG/Scheduler/State/Event/Lease/Worktree/Machine Gate/Policy/Evidence）分离。
+- 理由：LLM 可以提出决策，但不能直接改变事实。组织智能层调用 LLM 做语义判断，
+  执行控制层按确定性规则执行。两层通过 TaskPack 契约衔接。
+- 裁决日期：2026-09-12（d9.md 新增冻结）
+
+---
+
 ## ADR-010（SUPERSEDED）：MVP UI 使用 Streamlit，但核心代码不得依赖 Streamlit
 
 - 状态：**SUPERSEDED**（被 ADR-016 取代）
