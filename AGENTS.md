@@ -17,6 +17,7 @@
 | 5 | `docs/adr.md` | ADR-001 ~ ADR-030 架构决策记录 |
 | 6 | `docs/项目开发-多方案评审标准指令.txt` | 开发阶段评审清单 |
 | 7 | `.docs/00_governance/project-map.md` | 文档体系总入口 |
+| 8 | `docs/PROJECT-STRUCTURE-SPEC.md` | 目录归属、依赖方向、命名规范 |
 
 ---
 
