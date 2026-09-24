@@ -1,7 +1,7 @@
 """Fake执行体适配器（用于测试）"""
 
 import time
-from typing import Optional
+from typing import Callable, Optional
 
 from .base import BaseAdapter, AgentResult, Capabilities, ErrorCode, register_adapter
 
@@ -82,6 +82,41 @@ class FakeAdapter(BaseAdapter):
             error_msg="",
             usage={"prompt_tokens": 10, "completion_tokens": 20},
             duration_ms=100,
+        )
+
+    def run_stream(
+        self,
+        prompt: str,
+        workdir: str,
+        model: str,
+        timeout: int = 600,
+        on_chunk: Callable[[str], None] | None = None,
+    ) -> AgentResult:
+        """流式执行（P1-A-2）：分 3 次推送假文本块，最后返回正常结果。
+
+        用于不花真钱验证 stream_chunk 管道是否畅通。
+        """
+        self.call_count += 1
+        self.last_prompt = prompt
+        self.last_workdir = workdir
+        self.last_model = model
+
+        chunks = ["开始分析需求...", "正在生成代码...", "完成，输出报告。"]
+        for i, chunk in enumerate(chunks, 1):
+            if on_chunk is not None:
+                on_chunk(f"Fake chunk {i}/{len(chunks)}: {chunk}")
+            time.sleep(0.05)
+
+        if self.fail_with:
+            return self._create_failure_result()
+
+        return AgentResult(
+            ok=True,
+            output=f"FakeAdapter(streamed): 已处理任务 '{prompt[:50]}...' (工作目录: {workdir})",
+            error_code=None,
+            error_msg="",
+            usage={"prompt_tokens": 10, "completion_tokens": 20},
+            duration_ms=150,
         )
 
     def _create_failure_result(self) -> AgentResult:

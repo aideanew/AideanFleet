@@ -1,6 +1,6 @@
 """这是什么：六节报告的解析与校验。执行体回执少任何一节都不得进入审查。
 怎么用：from fleet.manager import report;  report.parse(text) / report.missing_sections(text)
-契约：prompts/报告模板.md（六节标题原样出现一次：改动清单/命令记录/证据链/四要素/未完成事项/模型自述）。
+契约：fleet/prompts/报告模板.md（六节标题原样出现一次：改动清单/命令记录/证据链/四要素/未完成事项/模型自述）。
 """
 
 from __future__ import annotations

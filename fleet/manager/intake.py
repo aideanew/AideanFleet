@@ -126,6 +126,7 @@ def _plan_templates(requirements: str) -> list[tuple[str, list[dict[str, str]]]]
                 "verify_cmd": verify_doc,
                 "assignee": "manager",
                 "reviewer": "reviewer-1",
+                "allowed_files": "docs/**",
             },
         ]),
         ("核心实现", [
@@ -139,6 +140,7 @@ def _plan_templates(requirements: str) -> list[tuple[str, list[dict[str, str]]]]
                 "verify_cmd": verify_build,
                 "assignee": "be-1",
                 "reviewer": "reviewer-1",
+                "allowed_files": "src/**,package.json,tsconfig.json",
             },
             {
                 "subtask": "界面·渲染·交互实现",
@@ -150,6 +152,7 @@ def _plan_templates(requirements: str) -> list[tuple[str, list[dict[str, str]]]]
                 "verify_cmd": verify_build,
                 "assignee": "fe-1",
                 "reviewer": "reviewer-1",
+                "allowed_files": "src/components/**,src/styles/**,index.html",
             },
         ]),
         ("测试验收", [
@@ -163,6 +166,7 @@ def _plan_templates(requirements: str) -> list[tuple[str, list[dict[str, str]]]]
                 "verify_cmd": verify_build,
                 "assignee": "be-2",
                 "reviewer": "reviewer-1",
+                "allowed_files": "src/**,index.html,docs/**",
             },
             {
                 "subtask": "终局验收与完成度表",
@@ -174,6 +178,7 @@ def _plan_templates(requirements: str) -> list[tuple[str, list[dict[str, str]]]]
                 "verify_cmd": verify_build,
                 "assignee": "reviewer-1",
                 "reviewer": "reviewer-1",
+                "allowed_files": "docs/**",
             },
         ]),
     ]
@@ -244,7 +249,7 @@ def start_project(
                 assignee=spec["assignee"],
                 reviewer=spec["reviewer"],
                 workspace=workspace,
-                allowed_files="",
+                allowed_files=spec.get("allowed_files", ""),
                 forbidden_files="",
                 project_id=pid,
                 adapter=default_adapter,

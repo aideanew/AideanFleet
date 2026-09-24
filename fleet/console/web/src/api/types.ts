@@ -391,7 +391,7 @@ export interface WsNotification {
  *
  * 生产方现状：`fleet/console/server.py` 当前**没有**任何地方广播该类型
  * （grep 全部 broadcast 调用：task_update / progress / plan_update / config_changed /
- *  chat_message / notification / 事件动作映射），即 INT-04 的 stream_chunk 生产方仍缺位。
+ *  chat_message / notification / 事件动作映射），P1-A-3 后 dispatcher 已产出 stream_chunk 事件。
  * 故本类型先按契约形状落地，客户端完整实现消费逻辑，并用注入钩子做自动化验证；
  * 角色A 一旦补上生产方，客户端无需改动即可流式渲染。
  */

@@ -7,7 +7,7 @@
  *
  * UI-03R §9.6：新增 `stream_chunk` 增量渲染。本页在事件气泡之外单独维护一个
  * **实时增量气泡**，逐帧追加 delta；收到完整 chat_reply 事件后自动清空（避免重复）。
- * 由于服务端当前不产出 stream_chunk（INT-04 REWORK），气泡上如实标注来源。
+ * P1-A-3 后服务端通过 dispatcher._run_with_chain 产出 stream_chunk 事件。
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import ChatBubble from '@/components/ChatBubble.vue'

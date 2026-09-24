@@ -26,7 +26,7 @@ def test_health_exact_contract_shape(fleet_env):
     response = tc.get("/api/health")
     assert response.status_code == 200
     payload = response.json()
-    assert set(payload.keys()) == {"version", "db", "events", "config"}  # 契约 §1：恰好四个键
+    assert set(payload.keys()) == {"version", "db", "events", "config", "frontend_built"}  # 契约 §1：五键（frontend_built 为 P0-B-3 新增）
     assert payload["version"] == "0.3.0"  # REL-01：版本统一（pyproject.toml 同步）
     assert payload["db"] and payload["events"] and payload["config"]
 

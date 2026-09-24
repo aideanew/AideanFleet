@@ -92,15 +92,15 @@ bind_model_name = [agnes3,agnes2,agnes1] //此为示例，第一个不通切第�
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-sender_email = "***REMOVED***@163.com"
+sender_email = "${NOTIFY_EMAIL}"
 receiver_email = "164093410@qq.com"
-password = "***REMOVED***"
+password = "${163_AUTH_CODE}"
 message = MIMEText("测试内容", _subtype='plain', _charset='utf-8')
 message['From'] = sender_email  # 邮件的发送者
 message['To'] = receiver_email  # 邮件的接收者
 message['Subject'] = Header(f'测试推送', 'utf-8')  # 邮件的标题
 smtper = smtplib.SMTP_SSL("smtp.163.com", 465)
-smtper.login("***REMOVED***@163.com", "***REMOVED***")
+smtper.login("${NOTIFY_EMAIL}", "${163_AUTH_CODE}")
 smtper.sendmail(sender_email, receiver_email, message.as_string())
 ```
 配置什么时候消息提醒，勾选，触发后发一条。(1)任务开始时，默认关闭;(2)任务结束时，默认开启;(3)Manager模型额度不够时，默认开启;(4)执行角色模型额度不够时，默认开启;

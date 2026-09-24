@@ -214,7 +214,20 @@ def _run_with_chain(
                 task_id=task_id, project=project or "", role=assignee,
                 adapter=adapter.name, model=model_id or "",
             ):
-                result = adapter.run(prompt, workspace, model_id, policy.timeout_seconds)
+                # P1-A-3：统一走 run_stream（默认实现 fallback 到 run，不影响非流式适配器）；
+                # 有 on_chunk 回调时，支持流式的适配器（如 FakeAdapter 测试）会逐块推送事件。
+                def _on_chunk(text: str, _tid=task_id, _role=assignee, _model=model_name or adapter.name, _proj=project) -> None:
+                    events.append(
+                        actor="manager",
+                        action="task:stream_chunk",
+                        task_id=_tid,
+                        summary=text[:200],
+                        url=f"/tasks/{_tid}" if _tid else None,
+                        project=_proj,
+                        extra={"role": _role, "model": _model},
+                    )
+
+                result = adapter.run_stream(prompt, workspace, model_id, policy.timeout_seconds, on_chunk=_on_chunk)
             # 孤儿切换守卫：rel 守卫可能在 adapter.run() 阻塞期间把任务升级为 BLOCKED。
             # 不检查就会在 BLOCKED 任务上继续空转切模型（P-008 T04 实测：BLOCKED 后 26 分钟仍在切 modelscope→amd）。
             _current = db.get_task(task_id) or {}

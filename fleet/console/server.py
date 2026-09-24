@@ -303,10 +303,15 @@ def _config_alive() -> bool:
         return False
 
 
+def _frontend_built() -> bool:
+    """检查前端构建产物是否存在。"""
+    return (Path(__file__).parent / "web" / "dist" / "index.html").exists()
+
+
 @app.get("/api/health")
 def api_health() -> dict[str, Any]:
-    """契约 §1：返回体恰好四个键 version/db/events/config。"""
-    return {"version": VERSION, "db": _db_alive(), "events": events.health(), "config": _config_alive()}
+    """契约 §1：返回 version/db/events/config/frontend_built。"""
+    return {"version": VERSION, "db": _db_alive(), "events": events.health(), "config": _config_alive(), "frontend_built": _frontend_built()}
 
 
 @app.post("/api/session")
@@ -1293,6 +1298,8 @@ def _handle_ws_confirm(session: dict[str, Any], message: dict[str, Any]) -> dict
 @app.on_event("startup")
 def _on_startup() -> None:
     fleet_config.allow_write(True)  # 控制台进程允许写 .env；引擎侧保持只读
+    if not _frontend_built():
+        print("⚠️  前端未构建，控制台将白屏。请运行: cd fleet/console/web && pnpm install && pnpm build")
     try:  # REL-01：事件归档轮转 + 卡死扫描（幂等，失败不阻塞启动）
         from fleet.rel import maintenance
 

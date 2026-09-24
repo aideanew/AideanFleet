@@ -49,6 +49,10 @@ def test_intake_to_done_aggregates_real_dispatch_usage(fleet_env, monkeypatch):
             default_adapter=adapter.name,
         )
         assert created["tasks"] == 5
+        # P1-B-1: intake 模板预填了 allowed_files，但共享 workspace + 批量调度
+        # 导致跨任务文件干扰机器门。测试关注 intake→done 流程，清空避免干扰。
+        for t in db.list_tasks(project_id):
+            db.update_task(t["task_id"], allowed_files="", forbidden_files="")
         for _ in range(12):
             scheduler.schedule_once(project_id)
             if all(t["exec_status"] == "DONE" for t in db.list_tasks(project_id)):

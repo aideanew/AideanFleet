@@ -199,7 +199,7 @@ DISPATCH_TEMPLATE = """[MANAGER DISPATCH]
 3. 运行要求的测试；
 4. 原样运行机器门命令：{verify_cmd}
 5. 证据在标准输出中原样返回，由 Fleet 保存到：{evidence}（执行体不得越界写入）；
-6. 按 prompts/报告模板.md 返回完整六节报告（改动清单 / 命令记录 / 证据链 / 四要素 / 未完成事项 / 模型自述）；
+6. 按 fleet/prompts/报告模板.md 返回完整六节报告（改动清单 / 命令记录 / 证据链 / 四要素 / 未完成事项 / 模型自述）；
 7. 命令输出必须是真实原文，不得转述；
 8. 写明 provider / model_id / 是否发生降级；
 9. 被阻塞时如实返回 BLOCKED，并写清阻塞点与所需依赖。
@@ -229,6 +229,22 @@ class BaseAdapter(ABC):
         必须自己吞掉所有异常并转成 AgentResult(ok=False, error_code=...)。
         """
         raise NotImplementedError
+
+    def run_stream(
+        self,
+        prompt: str,
+        workdir: str,
+        model: str,
+        timeout: int = 600,
+        on_chunk: Callable[[str], None] | None = None,
+    ) -> AgentResult:
+        """流式执行任务（P1-A-1 新增）。
+
+        默认实现：忽略 on_chunk，直接 fallback 到 run()。
+        支持流式的适配器覆写本方法，在执行过程中调用 on_chunk(text) 逐块推送。
+        on_chunk 接收一个字符串参数（增量文本块），可能被调用 0~N 次。
+        """
+        return self.run(prompt, workdir, model, timeout)
 
     def capabilities(self) -> Capabilities:
         """能力自述；默认全 False，由角色C 的具体适配器覆盖。"""
