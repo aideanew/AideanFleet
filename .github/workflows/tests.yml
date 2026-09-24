@@ -35,15 +35,31 @@ jobs:
       id: pytest
       run: |
         python -m pytest tests -x --tb=long -v 2>&1 | tee pytest_output.txt
-        echo "PYTEST_EXIT=${PIPESTATUS[0]}" >> $GITHUB_ENV
       shell: bash
       continue-on-error: true
 
-    - name: Print failure as annotation
+    - name: Extract failure summary
       if: steps.pytest.outcome == 'failure'
       run: |
-        echo "::error::Pytest failed on ${{ matrix.os }}. First 50 lines of output:"
-        head -50 pytest_output.txt | while IFS= read -r line; do
+        echo "=== FAILED TEST ==="
+        grep -E "^FAILED|^ERROR|::.*FAILED|::.*ERROR" pytest_output.txt | head -5
+        echo "=== ERROR LINES ==="
+        grep -E "^E |^Error|^ImportError|^ModuleNotFound|assert|Exception|raise" pytest_output.txt | head -20
+        echo "=== LAST 30 LINES ==="
+        tail -30 pytest_output.txt
+      shell: bash
+
+    - name: Print as annotation
+      if: steps.pytest.outcome == 'failure'
+      run: |
+        {
+          echo "::error::FAILED on ${{ matrix.os }}:"
+          grep -E "^FAILED|^ERROR" pytest_output.txt | head -5
+          echo "---"
+          grep -E "^E " pytest_output.txt | head -15
+          echo "---"
+          tail -10 pytest_output.txt
+        } | while IFS= read -r line; do
           echo "::error::$line"
         done
       shell: bash
