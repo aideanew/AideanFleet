@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   test:
     strategy:
@@ -44,10 +47,10 @@ jobs:
         git config user.name "CI"
         git config user.email "ci@localhost"
         git checkout --orphan ci-debug
-        git rm -rf .
+        git rm -rf . 2>/dev/null || true
         cp pytest_output.txt .
         git add pytest_output.txt
-        git commit -m "CI test output for ${{ github.sha }}"
+        git commit -m "CI output for ${{ github.sha }}"
         git push origin ci-debug --force
       shell: bash
       env:
