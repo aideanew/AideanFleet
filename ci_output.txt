@@ -1,0 +1,406 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0 -- /opt/hostedtoolcache/Python/3.12.14/x64/bin/python
+cachedir: .pytest_cache
+rootdir: /home/runner/work/AideanFleet/AideanFleet
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collecting ... collected 307 items
+
+tests/core/test_archive.py::test_archive_rotate_events PASSED            [  0%]
+tests/core/test_archive.py::test_archive_rotate_empty PASSED             [  0%]
+tests/core/test_broadcast_isolation.py::test_broadcast_targets_without_project_goes_to_all PASSED [  0%]
+tests/core/test_broadcast_isolation.py::test_broadcast_targets_with_project_filters_others PASSED [  1%]
+tests/core/test_broadcast_isolation.py::test_unattributed_task_event_is_not_broadcast PASSED [  1%]
+tests/core/test_broadcast_isolation.py::test_unattributed_chat_event_is_not_broadcast PASSED [  1%]
+tests/core/test_broadcast_isolation.py::test_global_mode_event_still_broadcasts PASSED [  2%]
+tests/core/test_broadcast_isolation.py::test_attributed_task_event_broadcasts_with_project PASSED [  2%]
+tests/core/test_context_budget.py::test_estimate_tokens_is_chars_over_four PASSED [  2%]
+tests/core/test_context_budget.py::test_assemble_prompt_fixed_order PASSED [  3%]
+tests/core/test_context_budget.py::test_assemble_prompt_trims_files_within_budget PASSED [  3%]
+tests/core/test_context_budget.py::test_assemble_prompt_missing_file_marked PASSED [  3%]
+tests/core/test_context_budget.py::test_assembly_events_fields_frozen PASSED [  4%]
+tests/core/test_context_budget.py::test_budget_exceeded_when_fixed_section_alone_overflows PASSED [  4%]
+tests/core/test_context_budget.py::test_extract_keywords_hit_relevant_paragraphs PASSED [  4%]
+tests/core/test_context_budget.py::test_assemble_rework_prompt_incremental_only PASSED [  5%]
+tests/core/test_context_budget.py::test_smoke_memory_ref_trim_model_call_chain PASSED [  5%]
+tests/core/test_dag.py::test_detect_cycles_finds_cycle PASSED            [  5%]
+tests/core/test_dag.py::test_detect_cycles_acyclic_returns_empty PASSED  [  6%]
+tests/core/test_dag.py::test_assert_acyclic_raises PASSED                [  6%]
+tests/core/test_dag.py::test_create_task_rejects_cycle PASSED            [  6%]
+tests/core/test_dag.py::test_get_ready_tasks_dependency_and_conflict PASSED [  7%]
+tests/core/test_dag.py::test_get_ready_tasks_defers_on_write_conflict PASSED [  7%]
+tests/core/test_dag.py::test_release_dependents PASSED                   [  7%]
+tests/core/test_dag_parallel.py::test_allowed_files_no_conflict PASSED   [  8%]
+tests/core/test_dag_parallel.py::test_allowed_files_conflict PASSED      [  8%]
+tests/core/test_dag_parallel.py::test_empty_allowed_files_conflict PASSED [  8%]
+tests/core/test_dag_parallel.py::test_unrestricted_warning_not_blocking PASSED [  9%]
+tests/core/test_e2e_mock.py::test_e2e_mock_write PASSED                  [  9%]
+tests/core/test_executors_registry.py::test_begin_snapshot_end_roundtrip PASSED [  9%]
+tests/core/test_executors_registry.py::test_same_pid_multiple_spawns_do_not_collide PASSED [ 10%]
+tests/core/test_executors_registry.py::test_dead_process_is_reaped_by_snapshot PASSED [ 10%]
+tests/core/test_executors_registry.py::test_run_context_capture_and_restore PASSED [ 10%]
+tests/core/test_executors_registry.py::test_context_is_thread_local PASSED [ 11%]
+tests/core/test_executors_registry.py::test_begin_without_pid_returns_none PASSED [ 11%]
+tests/core/test_governance_api.py::test_approvals_requires_session PASSED [ 11%]
+tests/core/test_governance_api.py::test_approvals_lifecycle PASSED       [ 12%]
+tests/core/test_governance_api.py::test_approvals_reject PASSED          [ 12%]
+tests/core/test_governance_api.py::test_usage_totals_and_by_date PASSED  [ 12%]
+tests/core/test_governance_api.py::test_budget_status_defaults_and_set PASSED [ 13%]
+tests/core/test_governance_api.py::test_budget_consume_exceeded_visible PASSED [ 13%]
+tests/core/test_intake.py::test_detect_launch_intent PASSED              [ 13%]
+tests/core/test_intake.py::test_start_project_creates_plan_and_tasks PASSED [ 14%]
+tests/core/test_intake.py::test_schedule_progresses_tasks PASSED         [ 14%]
+tests/core/test_intake_project_identity.py::test_dialogue_intake_reuses_cli_registered_project PASSED [ 14%]
+tests/core/test_intake_project_identity.py::test_manager_owns_planning_not_implementation PASSED [ 14%]
+tests/core/test_intake_to_done_integration.py::test_intake_to_done_aggregates_real_dispatch_usage PASSED [ 15%]
+tests/core/test_intake_to_done_integration.py::test_repeated_event_scan_does_not_duplicate_usage PASSED [ 15%]
+tests/core/test_memory.py::test_add_entry_schema_frozen PASSED           [ 15%]
+tests/core/test_memory.py::test_add_entry_rejects_bad_kind_and_truncates_summary PASSED [ 16%]
+tests/core/test_memory.py::test_record_decision_and_correction_emit_events PASSED [ 16%]
+tests/core/test_memory.py::test_build_memory_header_empty_or_unknown_refs_is_empty PASSED [ 16%]
+tests/core/test_memory.py::test_build_memory_header_summary_only_never_full_text PASSED [ 17%]
+tests/core/test_memory.py::test_distill_from_report_creates_artifact_once PASSED [ 17%]
+tests/core/test_memory.py::test_distill_from_report_missing_report_returns_none PASSED [ 17%]
+tests/core/test_memory.py::test_ids_increase_monotonically_never_reuse PASSED [ 18%]
+tests/core/test_observability_api.py::test_executors_running_lists_registered_processes PASSED [ 18%]
+tests/core/test_observability_api.py::test_executors_running_requires_session PASSED [ 18%]
+tests/core/test_observability_api.py::test_history_tasks_sorted_and_field_mapped PASSED [ 19%]
+tests/core/test_observability_api.py::test_history_tasks_unknown_project PASSED [ 19%]
+tests/core/test_observability_api.py::test_history_tasks_requires_session PASSED [ 19%]
+tests/core/test_observability_api.py::test_role_profile_buckets_executed_reviewed_future PASSED [ 20%]
+tests/core/test_observability_api.py::test_role_profile_requires_session PASSED [ 20%]
+tests/core/test_opencode_usage.py::test_extracts_text_and_tokens_from_step_finish PASSED [ 20%]
+tests/core/test_opencode_usage.py::test_non_json_output_passthrough_without_usage PASSED [ 21%]
+tests/core/test_opencode_usage.py::test_empty_output_returns_empty_without_usage PASSED [ 21%]
+tests/core/test_opencode_usage.py::test_json_without_tokens_falls_back PASSED [ 21%]
+tests/core/test_plan_progress_tree.py::test_equal_mode_matches_legacy_done_over_total PASSED [ 22%]
+tests/core/test_plan_progress_tree.py::test_weighted_leaf_sum_is_exactly_100 PASSED [ 22%]
+tests/core/test_plan_progress_tree.py::test_stage_default_weight_is_sum_of_children PASSED [ 22%]
+tests/core/test_plan_progress_tree.py::test_explicit_stage_weight_overrides_child_rollup PASSED [ 23%]
+tests/core/test_plan_progress_tree.py::test_orphan_tasks_form_virtual_stage PASSED [ 23%]
+tests/core/test_plan_progress_tree.py::test_empty_stage_excluded_from_denominator PASSED [ 23%]
+tests/core/test_plan_progress_tree.py::test_empty_plan_with_all_done_tasks_reaches_100 PASSED [ 24%]
+tests/core/test_plan_progress_tree.py::test_no_tasks_zero_percent PASSED [ 24%]
+tests/core/test_plan_progress_tree.py::test_invalid_weights_fall_back_to_default PASSED [ 24%]
+tests/core/test_plan_progress_tree.py::test_distribute_pct_exact_one_decimal PASSED [ 25%]
+tests/core/test_pollution_guard.py::test_accident_names_all_detected PASSED [ 25%]
+tests/core/test_pollution_guard.py::test_gate_rejects_flattened_path_pollution PASSED [ 25%]
+tests/core/test_recovery.py::test_doing_kill_restart_no_duplicate_dispatch PASSED [ 26%]
+tests/core/test_recovery.py::test_assigned_crash_resume_completes_chain PASSED [ 26%]
+tests/core/test_recovery.py::test_assigned_crash_resume_run_to_completion PASSED [ 26%]
+tests/core/test_recovery.py::test_doing_stuck_task_escalates_via_manual_release PASSED [ 27%]
+tests/core/test_resolve_integration.py::test_resolve_to_done_chain PASSED [ 27%]
+tests/core/test_resolve_integration.py::test_real_adapter_probe[claudecode-claude] SKIPPED [ 27%]
+tests/core/test_resolve_integration.py::test_real_adapter_probe[codex-codex] SKIPPED [ 28%]
+tests/core/test_resolve_integration.py::test_real_adapter_probe[hermes-hermes] SKIPPED [ 28%]
+tests/core/test_resolve_integration.py::test_real_adapter_probe[opencode-opencode] SKIPPED [ 28%]
+tests/core/test_resolve_integration.py::test_real_adapter_probe[cline-cline] SKIPPED [ 28%]
+tests/core/test_resolve_integration.py::test_real_adapter_probe[gemini-gemini] SKIPPED [ 29%]
+tests/core/test_resolve_integration.py::test_real_adapter_probe[grok-grok] SKIPPED [ 29%]
+tests/core/test_retry_incremental.py::test_build_retry_context_with_git_repo PASSED [ 29%]
+tests/core/test_retry_incremental.py::test_build_retry_context_without_git_falls_back PASSED [ 30%]
+tests/core/test_retry_incremental.py::test_handle_rework_persists_retry_context PASSED [ 30%]
+tests/core/test_retry_incremental.py::test_rework_dispatch_sends_only_increment PASSED [ 30%]
+tests/core/test_retry_incremental.py::test_new_task_prompt_contains_memory_and_pass_event PASSED [ 31%]
+tests/core/test_retry_incremental.py::test_context_budget_parse_rules[None-8000] PASSED [ 31%]
+tests/core/test_retry_incremental.py::test_context_budget_parse_rules[0-8000] PASSED [ 31%]
+tests/core/test_retry_incremental.py::test_context_budget_parse_rules[299-8000] PASSED [ 32%]
+tests/core/test_retry_incremental.py::test_context_budget_parse_rules[300-300] PASSED [ 32%]
+tests/core/test_retry_incremental.py::test_context_budget_parse_rules[12000-12000] PASSED [ 32%]
+tests/core/test_rework_manager.py::test_handle_rework_merges_reason_into_detail PASSED [ 33%]
+tests/core/test_rework_manager.py::test_redispatch_full_chain PASSED     [ 33%]
+tests/core/test_rework_manager.py::test_handle_rework_escalated_is_noop PASSED [ 33%]
+tests/core/test_rework_manager.py::test_confirm_release_creates_successor PASSED [ 34%]
+tests/core/test_rework_manager.py::test_confirm_release_rejects_non_escalated PASSED [ 34%]
+tests/core/test_rework_manager.py::test_confirm_release_successor_id_increments PASSED [ 34%]
+tests/core/test_roles_summary.py::test_roles_summary_aggregates_duration_and_usage PASSED [ 35%]
+tests/core/test_roles_summary.py::test_roles_summary_requires_session PASSED [ 35%]
+tests/core/test_scheduler.py::test_schedule_once_collects_drafts_and_dispatches PASSED [ 35%]
+tests/core/test_scheduler.py::test_control_bus_mode_switch_and_confirm PASSED [ 36%]
+tests/core/test_scheduler.py::test_run_loop_step_mode_waits_for_confirm PASSED [ 36%]
+tests/core/test_scheduler.py::test_run_loop_auto_mode_dispatches_without_confirm PASSED [ 36%]
+tests/core/test_scheduler.py::test_run_loop_step_mode_one_task_per_confirm PASSED [ 37%]
+tests/core/test_scheduler.py::test_normal_dispatch_not_marked_blocked PASSED [ 37%]
+tests/core/test_scheduler.py::test_dispatch_exception_after_doing_persists_blocked PASSED [ 37%]
+tests/core/test_scheduler.py::test_dispatch_exception_in_step_mode_does_not_escape PASSED [ 38%]
+tests/core/test_scheduler.py::test_run_loop_step_mode_survives_dispatch_exception FAILED [ 38%]
+tests/core/test_scheduler.py::test_persist_failure_keeps_state_without_blocked_edge PASSED [ 38%]
+tests/core/test_scheduler.py::test_persist_failure_is_silent PASSED      [ 39%]
+tests/core/test_scheduler.py::test_draft_collect_failure_is_reported_not_raised PASSED [ 39%]
+tests/core/test_server_api.py::test_health_exact_contract_shape PASSED   [ 39%]
+tests/core/test_server_api.py::test_api_requires_session PASSED          [ 40%]
+tests/core/test_server_api.py::test_session_create_with_cookie_and_gbk_body PASSED [ 40%]
+tests/core/test_server_api.py::test_session_rejects_unknown_project PASSED [ 40%]
+tests/core/test_server_api.py::test_plan_and_events_contract PASSED      [ 41%]
+tests/core/test_server_api.py::test_plan_unknown_project_is_200_business_error PASSED [ 41%]
+tests/core/test_server_api.py::test_launch_event_contract PASSED         [ 41%]
+tests/core/test_server_api.py::test_config_sections_and_aliases PASSED   [ 42%]
+tests/core/test_server_api.py::test_mode_and_confirm_and_control PASSED  [ 42%]
+tests/core/test_server_api.py::test_task_detail_and_dispatch_409 PASSED  [ 42%]
+tests/core/test_server_api.py::test_notify_test_unwired_503 PASSED       [ 42%]
+tests/core/test_session_project_identity.py::test_unlock_by_project_name PASSED [ 43%]
+tests/core/test_session_project_identity.py::test_unlock_by_project_id PASSED [ 43%]
+tests/core/test_session_project_identity.py::test_unlock_unknown_project_rejected PASSED [ 43%]
+tests/core/test_session_project_identity.py::test_switch_session_project PASSED [ 44%]
+tests/core/test_session_project_identity.py::test_switch_requires_valid_session PASSED [ 44%]
+tests/core/test_session_project_identity.py::test_project_names_endpoint_exempt_and_minimal PASSED [ 44%]
+tests/core/test_stream_chunk.py::test_stream_chunk_e2e PASSED            [ 45%]
+tests/core/test_ten_scenarios.py::test_scenario_1_legal_chain PASSED     [ 45%]
+tests/core/test_ten_scenarios.py::test_scenario_2_illegal_transition PASSED [ 45%]
+tests/core/test_ten_scenarios.py::test_scenario_3_fourth_rework_escalates PASSED [ 46%]
+tests/core/test_ten_scenarios.py::test_scenario_4_config_atomic_crash PASSED [ 46%]
+tests/core/test_ten_scenarios.py::test_scenario_5_concurrent_event_appends PASSED [ 46%]
+tests/core/test_ten_scenarios.py::test_scenario_6_soft_retry_then_model_switch PASSED [ 47%]
+tests/core/test_ten_scenarios.py::test_scenario_7_hard_fail_no_retry PASSED [ 47%]
+tests/core/test_ten_scenarios.py::test_scenario_8_gate_fail_rework_without_llm PASSED [ 47%]
+tests/core/test_ten_scenarios.py::test_scenario_9_plan_concurrent_atomic_write PASSED [ 48%]
+tests/core/test_ten_scenarios.py::test_scenario_10_mock_executor_eight_events PASSED [ 48%]
+tests/core/test_watchdog.py::test_watchdog_stuck_detection PASSED        [ 48%]
+tests/core/test_watchdog.py::test_watchdog_normal_task_not_flagged PASSED [ 49%]
+tests/governance/test_governance.py::TestStoreInit::test_init_db_creates_tables PASSED [ 49%]
+tests/governance/test_governance.py::TestStoreUsage::test_record_and_query PASSED [ 49%]
+tests/governance/test_governance.py::TestStoreUsage::test_sum_by_task PASSED [ 50%]
+tests/governance/test_governance.py::TestStoreBudget::test_upsert_and_get PASSED [ 50%]
+tests/governance/test_governance.py::TestStoreBudget::test_upsert_update PASSED [ 50%]
+tests/governance/test_governance.py::TestStoreApproval::test_create_and_decide PASSED [ 51%]
+tests/governance/test_governance.py::TestStoreApproval::test_list_pending PASSED [ 51%]
+tests/governance/test_governance.py::TestUsageAggregator::test_extract_usage_from_event PASSED [ 51%]
+tests/governance/test_governance.py::TestUsageAggregator::test_extract_usage_no_usage_field PASSED [ 52%]
+tests/governance/test_governance.py::TestUsageAggregator::test_extract_usage_non_model_call PASSED [ 52%]
+tests/governance/test_governance.py::TestUsageAggregator::test_scan_events_file PASSED [ 52%]
+tests/governance/test_governance.py::TestUsageAggregator::test_by_task PASSED [ 53%]
+tests/governance/test_governance.py::TestBudgetManager::test_default_budget_exists PASSED [ 53%]
+tests/governance/test_governance.py::TestBudgetManager::test_budget_limit_properties PASSED [ 53%]
+tests/governance/test_governance.py::TestBudgetManager::test_budget_limit_exceeded PASSED [ 54%]
+tests/governance/test_governance.py::TestBudgetManager::test_budget_limit_warning PASSED [ 54%]
+tests/governance/test_governance.py::TestBudgetManager::test_consume_and_check PASSED [ 54%]
+tests/governance/test_governance.py::TestBudgetManager::test_budget_exceeded_raises PASSED [ 55%]
+tests/governance/test_governance.py::TestBudgetManager::test_budget_reset PASSED [ 55%]
+tests/governance/test_governance.py::TestApprovalManager::test_request_approval PASSED [ 55%]
+tests/governance/test_governance.py::TestApprovalManager::test_approve PASSED [ 56%]
+tests/governance/test_governance.py::TestApprovalManager::test_reject PASSED [ 56%]
+tests/governance/test_governance.py::TestApprovalManager::test_invalid_action_type PASSED [ 56%]
+tests/governance/test_governance.py::TestApprovalManager::test_check_expired PASSED [ 57%]
+tests/governance/test_governance.py::TestApprovalManager::test_list_pending PASSED [ 57%]
+tests/governance/test_governance.py::TestReportGenerator::test_generate_daily PASSED [ 57%]
+tests/governance/test_governance.py::TestReportGenerator::test_summary_dict PASSED [ 57%]
+tests/governance/test_governance.py::TestReportGenerator::test_generate_for_task PASSED [ 58%]
+tests/int/test_integration验收.py::TestExecutorSmoke::test_claude_code_version SKIPPED [ 58%]
+tests/int/test_integration验收.py::TestExecutorSmoke::test_codex_version SKIPPED [ 58%]
+tests/int/test_integration验收.py::TestExecutorSmoke::test_opencode_version SKIPPED [ 59%]
+tests/int/test_integration验收.py::TestExecutorSmoke::test_hermes_version SKIPPED [ 59%]
+tests/int/test_integration验收.py::TestExecutorSmoke::test_cline_version SKIPPED [ 59%]
+tests/int/test_integration验收.py::TestExecutorSmoke::test_gemini_version SKIPPED [ 60%]
+tests/int/test_integration验收.py::TestExecutorSmoke::test_grok_version SKIPPED [ 60%]
+tests/int/test_integration验收.py::TestExecutorSmoke::test_cli_call_limit_respected PASSED [ 60%]
+tests/int/test_integration验收.py::TestFiveModeWalkthrough::test_plan_mode PASSED [ 61%]
+tests/int/test_integration验收.py::TestFiveModeWalkthrough::test_run_mode PASSED [ 61%]
+tests/int/test_integration验收.py::TestFiveModeWalkthrough::test_intake_mode PASSED [ 61%]
+tests/int/test_integration验收.py::TestFiveModeWalkthrough::test_audit_mode PASSED [ 62%]
+tests/int/test_integration验收.py::TestFiveModeWalkthrough::test_discuss_mode PASSED [ 62%]
+tests/int/test_integration验收.py::TestFiveModeWalkthrough::test_invalid_mode_rejected PASSED [ 62%]
+tests/int/test_integration验收.py::TestConcurrentStress::test_concurrent_dispatch PASSED [ 63%]
+tests/int/test_integration验收.py::TestConcurrentStress::test_concurrent_usage_recording PASSED [ 63%]
+tests/int/test_integration验收.py::TestConcurrentStress::test_concurrent_budget_checks PASSED [ 63%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_01_governance_store_init PASSED [ 64%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_02_usage_recording PASSED [ 64%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_03_budget_pool_creation PASSED [ 64%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_04_budget_circuit_breaker PASSED [ 65%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_05_approval_gate_create PASSED [ 65%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_06_approval_gate_approve PASSED [ 65%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_07_approval_gate_reject PASSED [ 66%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_08_report_generation PASSED [ 66%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_09_fake_adapter_capabilities PASSED [ 66%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_10_fake_adapter_run PASSED [ 67%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_11_launch_core_import PASSED [ 67%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_12_governance_budget_sync PASSED [ 67%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_13_multiple_modes_dispatch PASSED [ 68%]
+tests/int/test_integration验收.py::TestPhase2Checklist::test_14_concurrent_adapter_run PASSED [ 68%]
+tests/int/test_resolve_chain.py::test_resolve_fake_adapter PASSED        [ 68%]
+tests/int/test_resolve_chain.py::test_fake_adapter_run_success PASSED    [ 69%]
+tests/int/test_resolve_chain.py::test_fake_adapter_run_429 PASSED        [ 69%]
+tests/int/test_resolve_chain.py::test_fake_adapter_run_401 PASSED        [ 69%]
+tests/int/test_resolve_chain.py::test_fake_adapter_run_timeout PASSED    [ 70%]
+tests/int/test_resolve_chain.py::test_fake_adapter_capabilities PASSED   [ 70%]
+tests/int/test_resolve_chain.py::test_fake_adapter_call_stats PASSED     [ 70%]
+tests/int/test_resolve_chain.py::test_base_adapter_is_contracts_compatible PASSED [ 71%]
+tests/int/test_resolve_chain.py::test_fake_adapter_is_contracts_compatible PASSED [ 71%]
+tests/rel/test_archive.py::test_rotate_moves_last_month_keeps_seq_continuous PASSED [ 71%]
+tests/rel/test_archive.py::test_rotate_noop_when_all_current_month PASSED [ 71%]
+tests/rel/test_archive.py::test_rotate_idempotent_rerun PASSED           [ 72%]
+tests/rel/test_archive.py::test_read_all_merges_archives_and_hot_in_seq_order PASSED [ 72%]
+tests/rel/test_archive.py::test_multi_month_rotation_keeps_current_month_rows PASSED [ 72%]
+tests/rel/test_archive.py::test_archive_evidence_zips_terminal_tasks PASSED [ 73%]
+tests/rel/test_recovery_matrix.py::test_matrix_assigned_kill_resume_dispatches_once PASSED [ 73%]
+tests/rel/test_recovery_matrix.py::test_matrix_doing_kill_resume_never_redispatches PASSED [ 73%]
+tests/rel/test_recovery_matrix.py::test_matrix_submitted_kill_resume_review_without_redispatch PASSED [ 74%]
+tests/rel/test_recovery_matrix.py::test_matrix_reviewing_kill_resume_can_continue_review PASSED [ 74%]
+tests/rel/test_recovery_matrix.py::test_recover_all_handles_mixed_states_and_skips_failures PASSED [ 74%]
+tests/rel/test_recovery_matrix.py::test_resume_rejects_state_outside_recoverable_set PASSED [ 75%]
+tests/rel/test_retry_timer.py::test_scan_below_threshold_is_noop PASSED  [ 75%]
+tests/rel/test_retry_timer.py::test_scan_marks_stuck_once_then_stays_quiet PASSED [ 75%]
+tests/rel/test_retry_timer.py::test_scan_escalates_to_blocked_at_double_threshold PASSED [ 76%]
+tests/rel/test_retry_timer.py::test_scan_ignores_non_doing_tasks PASSED  [ 76%]
+tests/rel/test_retry_timer.py::test_task_stuck_seconds_default_and_env_override PASSED [ 76%]
+tests/rel/test_retry_timer.py::test_stuck_event_seq_ordered_after_new_doing_cycle PASSED [ 77%]
+tests/rel/test_watchdog.py::test_probe_failure_threshold_triggers_restart_and_event PASSED [ 77%]
+tests/rel/test_watchdog.py::test_healthy_probe_never_restarts PASSED     [ 77%]
+tests/rel/test_watchdog.py::test_storm_guard_stops_and_escalates PASSED  [ 78%]
+tests/rel/test_watchdog.py::test_real_kill_and_revive_drill PASSED       [ 78%]
+tests/rel/test_watchdog.py::test_spawn_for_console_builds_detached_process PASSED [ 78%]
+tests/test_budget_atomic.py::test_same_scope_keeps_layers_separate PASSED [ 79%]
+tests/test_budget_atomic.py::test_setting_limit_and_reset_preserve_other_fields PASSED [ 79%]
+tests/test_budget_atomic.py::test_concurrent_managers_do_not_lose_consumption PASSED [ 79%]
+tests/test_budget_atomic.py::test_consumption_rolls_back_all_layers PASSED [ 80%]
+tests/test_budget_atomic.py::test_invalid_consumption_rejected[-1] PASSED [ 80%]
+tests/test_budget_atomic.py::test_invalid_consumption_rejected[1.5] PASSED [ 80%]
+tests/test_budget_atomic.py::test_invalid_consumption_rejected[True] PASSED [ 81%]
+tests/test_cli_default_name.py::test_default_project_name_derives_from_path PASSED [ 81%]
+tests/test_cli_default_name.py::test_default_project_name_falls_back_when_empty PASSED [ 81%]
+tests/test_cli_launch.py::test_health_contract[payload0-True] PASSED     [ 82%]
+tests/test_cli_launch.py::test_health_contract[payload1-False] PASSED    [ 82%]
+tests/test_cli_launch.py::test_health_contract[payload2-False] PASSED    [ 82%]
+tests/test_cli_launch.py::test_health_contract[payload3-False] PASSED    [ 83%]
+tests/test_cli_launch.py::test_start_console_propagates_port PASSED      [ 83%]
+tests/test_cli_launch.py::test_failed_console_stops_before_registration PASSED [ 83%]
+tests/test_cli_launch.py::test_config_failure_stops_startup PASSED       [ 84%]
+tests/test_cli_launch.py::test_launch_uses_requested_port_and_reports_degradation PASSED [ 84%]
+tests/test_cli_launch.py::test_occupied_console_is_reused_only_when_healthy PASSED [ 84%]
+tests/test_cli_launch.py::test_launch_survives_gbk_console_stdout PASSED [ 85%]
+tests/test_cli_launch.py::test_configure_stdio_skips_non_reconfigurable_stream PASSED [ 85%]
+tests/test_cli_launch.py::test_child_env_forces_utf8_output PASSED       [ 85%]
+tests/test_confirm_no_block.py::test_blocked_confirm_returns_immediately_and_redispatches_async PASSED [ 85%]
+tests/test_fake.py::test_fake_adapter_success PASSED                     [ 86%]
+tests/test_fake.py::test_fake_adapter_fail_429 PASSED                    [ 86%]
+tests/test_fake.py::test_fake_adapter_fail_401 PASSED                    [ 86%]
+tests/test_fake.py::test_fake_adapter_fail_timeout PASSED                [ 87%]
+tests/test_fake.py::test_fake_adapter_send_test_mail PASSED              [ 87%]
+tests/test_fake.py::test_fake_adapter_registration PASSED                [ 87%]
+tests/test_fake.py::test_fake_adapter_injectable_failures PASSED         [ 88%]
+tests/test_fake.py::test_fake_adapter_signature_compliance PASSED        [ 88%]
+tests/test_hermes_entry.py::test_parse_basic PASSED                      [ 88%]
+tests/test_hermes_entry.py::test_parse_all_modes PASSED                  [ 89%]
+tests/test_hermes_entry.py::test_parse_minimal PASSED                    [ 89%]
+tests/test_hermes_entry.py::test_parse_invalid_mode PASSED               [ 89%]
+tests/test_hermes_entry.py::test_parse_missing_project PASSED            [ 90%]
+tests/test_hermes_entry.py::test_parse_missing_mode PASSED               [ 90%]
+tests/test_hermes_entry.py::test_parse_discuss_with_seats PASSED         [ 90%]
+tests/test_notify.py::test_event_types PASSED                            [ 91%]
+tests/test_notify.py::test_default_config PASSED                         [ 91%]
+tests/test_notify.py::test_trigger_config PASSED                         [ 91%]
+tests/test_notify.py::test_trigger_set_enabled PASSED                    [ 92%]
+tests/test_notify.py::test_trigger_without_sender PASSED                 [ 92%]
+tests/test_opencode_workspace.py::test_explicit_directory_and_environment PASSED [ 92%]
+tests/test_opencode_workspace.py::test_missing_workspace_never_launches PASSED [ 93%]
+tests/test_opencode_workspace.py::test_ambiguous_workspace_never_launches[] PASSED [ 93%]
+tests/test_opencode_workspace.py::test_ambiguous_workspace_never_launches[relative/path] PASSED [ 93%]
+tests/test_opencode_workspace.py::test_report_is_returned_not_written_outside_workspace PASSED [ 94%]
+tests/test_opencode_workspace.py::test_no_powershell_assumption_in_prompt PASSED [ 94%]
+tests/test_procguard.py::test_kill_tree_kills_process SKIPPED (Windo...) [ 94%]
+tests/test_procguard.py::test_tree_safe_timeout_kills_tree SKIPPED (...) [ 95%]
+tests/test_procguard.py::test_tree_safe_normal_returns_output SKIPPED    [ 95%]
+tests/test_redlines.py::test_redline_safe_commands PASSED                [ 95%]
+tests/test_redlines.py::test_redline_dangerous_commands PASSED           [ 96%]
+tests/test_redlines.py::test_redline_logging PASSED                      [ 96%]
+tests/test_redlines.py::test_deny_re_list PASSED                         [ 96%]
+tests/test_scheduler_env_override.py::test_process_can_disable_global_scheduler PASSED [ 97%]
+tests/test_smoke.py::test_claudecode_smoke SKIPPED (Claude Code（cla...) [ 97%]
+tests/test_smoke.py::test_codex_smoke SKIPPED (Codex（codex）未安装...)  [ 97%]
+tests/test_smoke.py::test_opencode_smoke SKIPPED (OpenCode（opencode...) [ 98%]
+tests/test_smoke.py::test_hermes_smoke SKIPPED (Hermes 未安装，跳过...)  [ 98%]
+tests/test_subprocess_encoding.py::test_subprocess_utf8_roundtrip_with_gbk_default PASSED [ 98%]
+tests/test_watch_events.py::test_watch_events_loop_basic PASSED          [ 99%]
+tests/test_watch_events.py::test_watch_events_loop_project_filter PASSED [ 99%]
+tests/test_watch_events.py::test_watch_events_loop_idempotent PASSED     [ 99%]
+tests/test_watch_events.py::test_watch_events_loop_invalid_event PASSED  [100%]
+
+=================================== FAILURES ===================================
+_____________ test_run_loop_step_mode_survives_dispatch_exception ______________
+
+project = 'P-001'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd61ccfe0c0>
+stub_adapter = <Adapter stub>
+
+    def test_run_loop_step_mode_survives_dispatch_exception(project, monkeypatch, stub_adapter):
+        """一轮派工抛异常后 run_loop 必须继续跑下一拍，否则后续任务永久无人推进。"""
+        make_task(project, "T-9")
+        make_task(project, "T-10")
+        real_dispatch = scheduler.dispatcher.dispatch
+    
+        def boom_for_first(task_id, **kwargs):
+            if task_id == "T-9":
+                db.transition_and_log(task_id, "DOING", actor="scheduler", summary="进入执行")
+                raise RuntimeError("第一拍故障")
+            return real_dispatch(task_id, **kwargs)
+    
+        monkeypatch.setattr(scheduler.dispatcher, "dispatch", boom_for_first)
+    
+        async def drive():
+            bus = scheduler.ControlBus("step")
+            task = asyncio.create_task(
+                scheduler.run_loop(bus, project_id=project, interval=0.01, max_ticks=6)
+            )
+            for _ in range(5):  # 每拍一次确认；循环若死在第一拍，T-10 会永远停在 ASSIGNED
+                bus.confirm(note="放行")
+                await asyncio.sleep(0.05)
+            await task
+            return {tid: db.get_task(tid)["exec_status"] for tid in ("T-9", "T-10")}
+    
+        states = asyncio.run(drive())
+>       assert states["T-9"] == "BLOCKED"
+E       AssertionError: assert 'ASSIGNED' == 'BLOCKED'
+E         
+E         - BLOCKED
+E         + ASSIGNED
+
+tests/core/test_scheduler.py:216: AssertionError
+=============================== warnings summary ===============================
+tests/core/test_governance_api.py: 2 warnings
+tests/governance/test_governance.py: 6 warnings
+tests/int/test_integration验收.py: 3 warnings
+  /home/runner/work/AideanFleet/AideanFleet/fleet/governance/approval.py:41: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    self.created_at = datetime.utcnow().isoformat()
+
+tests/core/test_governance_api.py: 2 warnings
+tests/governance/test_governance.py: 5 warnings
+tests/int/test_integration验收.py: 3 warnings
+  /home/runner/work/AideanFleet/AideanFleet/fleet/governance/approval.py:44: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    datetime.utcnow() + timedelta(hours=APPROVAL_TIMEOUT_HOURS)
+
+tests/core/test_governance_api.py::test_approvals_lifecycle
+tests/governance/test_governance.py::TestApprovalManager::test_approve
+tests/int/test_integration验收.py::TestPhase2Checklist::test_06_approval_gate_approve
+  /home/runner/work/AideanFleet/AideanFleet/fleet/governance/approval.py:116: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow().isoformat()
+
+tests/core/test_governance_api.py::test_approvals_reject
+tests/governance/test_governance.py::TestApprovalManager::test_reject
+tests/governance/test_governance.py::TestApprovalManager::test_check_expired
+tests/int/test_integration验收.py::TestPhase2Checklist::test_07_approval_gate_reject
+  /home/runner/work/AideanFleet/AideanFleet/fleet/governance/approval.py:130: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow().isoformat()
+
+tests/core/test_governance_api.py::test_usage_totals_and_by_date
+tests/core/test_governance_api.py::test_usage_totals_and_by_date
+  /home/runner/work/AideanFleet/AideanFleet/fleet/governance/usage.py:156: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    timestamp=timestamp or datetime.utcnow().isoformat(),
+
+tests/core/test_governance_api.py::test_usage_totals_and_by_date
+  /home/runner/work/AideanFleet/AideanFleet/tests/core/test_governance_api.py:120: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    return datetime.utcnow().date().isoformat()
+
+tests/governance/test_governance.py::TestApprovalManager::test_check_expired
+  /home/runner/work/AideanFleet/AideanFleet/tests/governance/test_governance.py:289: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    expires_at=(datetime.utcnow() - timedelta(hours=1)).isoformat(),
+
+tests/governance/test_governance.py::TestApprovalManager::test_check_expired
+  /home/runner/work/AideanFleet/AideanFleet/fleet/governance/approval.py:146: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/core/test_scheduler.py::test_run_loop_step_mode_survives_dispatch_exception - AssertionError: assert 'ASSIGNED' == 'BLOCKED'
+  
+  - BLOCKED
+  + ASSIGNED
+=========== 1 failed, 285 passed, 21 skipped, 33 warnings in 21.50s ============
