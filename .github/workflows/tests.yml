@@ -31,23 +31,26 @@ jobs:
         pip install -e .
       shell: bash
 
-    - name: Debug info
+    - name: Run tests
+      id: pytest
       run: |
-        echo "=== Python version ==="
-        python --version
-        echo "=== Installed packages ==="
-        pip list
-        echo "=== sys.path ==="
-        python -c "import sys; print('\n'.join(sys.path))"
-        echo "=== Try import fleet ==="
-        python -c "import fleet; print('fleet OK:', fleet.__file__)" 2>&1 || echo "fleet import FAILED"
-        echo "=== Try import stubs ==="
-        python -c "from tests.core.stubs import pass_route; print('stubs OK')" 2>&1 || echo "stubs import FAILED"
+        python -m pytest tests -x --tb=long -v 2>&1 | tee pytest_output.txt
+        echo "PYTEST_EXIT=${PIPESTATUS[0]}" >> $GITHUB_ENV
+      shell: bash
+      continue-on-error: true
+
+    - name: Print failure as annotation
+      if: steps.pytest.outcome == 'failure'
+      run: |
+        echo "::error::Pytest failed on ${{ matrix.os }}. First 50 lines of output:"
+        head -50 pytest_output.txt | while IFS= read -r line; do
+          echo "::error::$line"
+        done
       shell: bash
 
-    - name: Run tests
-      run: |
-        python -m pytest tests -q --tb=long 2>&1 | tee pytest_output.txt
+    - name: Fail job if tests failed
+      if: steps.pytest.outcome == 'failure'
+      run: exit 1
       shell: bash
 
     - name: Upload test output on failure
