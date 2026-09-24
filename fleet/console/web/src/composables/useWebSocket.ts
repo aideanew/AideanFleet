@@ -173,8 +173,8 @@ async function catchUp(): Promise<void> {
     const result = await api.getEvents(s.auth.project || undefined, s.connection.lastSeq)
     applyCatchUp(result.events ?? [])
     if (result.events?.length) schedulePlanRefresh(s.auth.project)
-  } catch {
-    /* 补拉失败不阻断主流程，下一轮重连仍会重试 */
+  } catch (err) {
+    console.warn('[WebSocket] catchUp failed:', err)
   }
 }
 
@@ -205,8 +205,8 @@ function startPolling(): void {
         // plan 只在“收到事件”时刷新
         schedulePlanRefresh(s.auth.project)
       }
-    } catch {
-      /* 忽略单次失败 */
+    } catch (err) {
+      console.warn('[WebSocket] poll failed:', err)
     }
   }, 1000)
 }
@@ -277,8 +277,8 @@ function connect(): void {
       fake.onmessage = (event) => {
         try {
           handleMessage(JSON.parse(String((event as MessageEvent).data)) as WsServerMessage)
-        } catch {
-          /* 非法消息忽略 */
+        } catch (err) {
+          console.debug('[WebSocket] malformed message:', err)
         }
       }
       fake.onclose = () => {
@@ -296,8 +296,8 @@ function connect(): void {
     real.onmessage = (event) => {
       try {
         handleMessage(JSON.parse(String(event.data)) as WsServerMessage)
-      } catch {
-        /* 非法消息忽略 */
+      } catch (err) {
+        console.debug('[WebSocket] malformed message:', err)
       }
     }
     real.onclose = () => onClose()
@@ -305,7 +305,8 @@ function connect(): void {
       /* onclose 会紧随其后，统一在那里重连 */
     }
     socket.value = real
-  } catch {
+  } catch (err) {
+    console.warn('[WebSocket] connect failed:', err)
     scheduleReconnect()
   }
 }

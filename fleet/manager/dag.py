@@ -94,6 +94,15 @@ def _ranges_conflict(patterns_a: list[str], patterns_b: list[str]) -> bool:
     )
 
 
+
+
+_UNRESTRICTED = frozenset({"*"})
+
+
+def _is_unrestricted(patterns: list[str]) -> bool:
+    """是否为全通配（空 allowed_files 回退为 ["*"]）。"""
+    return set(patterns) == _UNRESTRICTED
+
 #: 内存去重：同一任务因同一批 DOING 冲突只发一次 task:deferred（防调度循环刷屏）。
 #: 键含 project_id：全局调度循环逐项目调用本函数，裸 task_id 会被其他项目的
 #: "冲突消失"清理误删，导致每拍重写事件（实测 676 条刷屏的根因）。
@@ -135,7 +144,25 @@ def get_ready_tasks(project_id: str, db_file: str | Any = None) -> list[dict[str
             continue
 
         own = _allowed_patterns(task)
-        blockers = sorted(tid for tid, rng in doing_ranges if _ranges_conflict(own, rng))
+        blockers: list[str] = []
+        for tid, rng in doing_ranges:
+            if _is_unrestricted(own) and _is_unrestricted(rng):
+                # P1-B-2：双方均无限制（allowed_files 为空→["*"]），允许并行但发警告
+                warn_key = (project_id, task["task_id"], "unrestricted")
+                if _DEFER_SEEN.get(warn_key) != tid:
+                    _DEFER_SEEN[warn_key] = tid
+                    events.append(
+                        actor="dag",
+                        action="task:range_unrestricted",
+                        task_id=task["task_id"],
+                        summary=f"{task['task_id']} 与 {tid} 均未限定 allowed_files，并行执行但存在写冲突风险",
+                        project=project_id,
+                        extra={"conflicts_with": tid, "reason": "both_unrestricted"},
+                    )
+                continue  # 不阻塞
+            if _ranges_conflict(own, rng):
+                blockers.append(tid)
+        blockers = sorted(blockers)
         if blockers:
             active_conflict_signature.add(task["task_id"])
             signature = ",".join(blockers)
