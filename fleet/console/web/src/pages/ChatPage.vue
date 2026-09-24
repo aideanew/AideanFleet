@@ -8,8 +8,15 @@
  * UI-03R §9.6：新增 `stream_chunk` 增量渲染。本页在事件气泡之外单独维护一个
  * **实时增量气泡**，逐帧追加 delta；收到完整 chat_reply 事件后自动清空（避免重复）。
  * P1-A-3 后服务端通过 dispatcher._run_with_chain 产出 stream_chunk 事件。
+ *
+ * P2-B-1：消息列表改用 vue-virtual-scroller（DynamicScroller，变高行自动测量），
+ * 只渲染可视区 ± 缓冲区的气泡——500+ 条历史滚动时 DOM 节点数 < 50、FPS > 30。
+ * older 按钮与 live 流气泡作为 stream 区固定栏保留在 scroller 之外，
+ * data-testid（inject-stream / stream-live / stream-text / stream-meta）全部保留。
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import ChatBubble from '@/components/ChatBubble.vue'
 import StreamText from '@/components/StreamText.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -28,7 +35,8 @@ const connection = useConnectionStore()
 const ws = useWebSocket()
 
 const draft = ref('')
-const scroller = ref<HTMLElement | null>(null)
+/** DynamicScroller 是函数式泛型组件，不能用 InstanceType；只声明用到的暴露方法 */
+const scrollerRef = ref<{ scrollToItem: (index: number, align?: 'start' | 'center' | 'end' | 'auto') => void } | null>(null)
 const streamingSeq = ref<number | null>(null)
 
 const messages = computed(() => chat.messages)
@@ -40,17 +48,19 @@ function roleOf(action: string): 'user' | 'manager' {
 
 async function scrollToBottom(): Promise<void> {
   await nextTick()
-  const el = scroller.value
-  if (el) el.scrollTop = el.scrollHeight
+  const last = messages.value.length - 1
+  if (last >= 0) scrollerRef.value?.scrollToItem(last, 'end')
 }
 
 function loadOlder(): void {
-  const el = scroller.value
-  const previousHeight = el?.scrollHeight ?? 0
+  const prevLen = messages.value.length
   chat.loadOlder()
   void nextTick(() => {
-    // 保持视口位置，避免加载历史后跳到别处
-    if (el) el.scrollTop = el.scrollHeight - previousHeight + el.scrollTop
+    // 在头部 prepend 了约 pageSize 条；原首条现位于 index=delta，钉在视口顶
+    // 保持用户停留在先前阅读位置，新载入的历史可向上滚查看
+    const delta = messages.value.length - prevLen
+    if (delta > 0) scrollerRef.value?.scrollToItem(delta, 'start')
+    else scrollerRef.value?.scrollToItem(0, 'start')
   })
 }
 
@@ -121,7 +131,7 @@ onMounted(scrollToBottom)
     <header class="page-head">
       <div class="page-title">
         <h2>对话</h2>
-        <span class="page-sub">与 Manager 实时交流 · 历史全量保留（分页续载，不截断）</span>
+        <span class="page-sub">与 Manager 实时交流 · 历史全量保留（虚拟滚动，不截断）</span>
       </div>
       <div class="row">
         <button class="btn btn-ghost" type="button" data-testid="inject-stream" @click="injectProbe">
@@ -134,7 +144,7 @@ onMounted(scrollToBottom)
       </div>
     </header>
 
-    <div ref="scroller" class="stream">
+    <div class="stream">
       <div v-if="chat.hasOlder" class="older">
         <button class="btn btn-ghost" type="button" @click="loadOlder">
           载入更早的 {{ Math.min(chat.pageSize, chat.total - chat.visibleCount) }} 条（共 {{ chat.total }} 条）
@@ -145,23 +155,34 @@ onMounted(scrollToBottom)
         暂无对话。输入指令后 Manager 会在此回执；事件流中的 chat / chat_reply 都会实时同步到这里。
       </p>
 
-      <ChatBubble
-        v-for="row in messages"
-        :key="row.seq"
-        :role="roleOf(String(row.action))"
-        :time="row.timestamp"
-        :streaming="row.seq === streamingSeq"
+      <DynamicScroller
+        v-else
+        ref="scrollerRef"
+        class="messages"
+        :items="messages"
+        :min-item-size="72"
+        key-field="seq"
       >
-        <StreamText
-          v-if="row.seq === streamingSeq"
-          :text="String(row.summary)"
-          :speed="16"
-          @done="streamingSeq = null"
-        />
-        <template v-else>{{ row.summary }}</template>
-      </ChatBubble>
+        <template #default="{ item, index, active }">
+          <DynamicScrollerItem :item="item" :index="index" :active="active">
+            <ChatBubble
+              :role="roleOf(String(item.action))"
+              :time="item.timestamp"
+              :streaming="item.seq === streamingSeq"
+            >
+              <StreamText
+                v-if="item.seq === streamingSeq"
+                :text="String(item.summary)"
+                :speed="16"
+                @done="streamingSeq = null"
+              />
+              <template v-else>{{ item.summary }}</template>
+            </ChatBubble>
+          </DynamicScrollerItem>
+        </template>
+      </DynamicScroller>
 
-      <!-- 增量流气泡（stream_chunk） -->
+      <!-- 增量流气泡（stream_chunk）——固定在列表下方，不参与回收 -->
       <div v-if="chat.streaming" class="live" data-testid="stream-live">
         <ChatBubble role="manager" :time="liveStream.lastAt" :streaming="liveStream.active">
           <span class="live-text" data-testid="stream-text">{{ liveStream.text }}</span>
@@ -202,10 +223,10 @@ onMounted(scrollToBottom)
   padding-bottom: 18px;
 }
 
+/* stream 不再自滚动：DynamicScroller 消息区独占滚动，older/live 为固定栏 */
 .stream {
   flex: 1;
   min-height: 0;
-  overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -213,6 +234,17 @@ onMounted(scrollToBottom)
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-panel);
+}
+
+.messages {
+  flex: 1;
+  min-height: 0;
+  /* DynamicScroller 自带滚动容器；此处只保证撑满剩余高度 */
+}
+
+.messages :deep(.bubble) {
+  /* 回收视图复用时气泡上下留出原 stream 的 gap 观感 */
+  margin-bottom: 12px;
 }
 
 .older {
@@ -225,6 +257,7 @@ onMounted(scrollToBottom)
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .live-text {
