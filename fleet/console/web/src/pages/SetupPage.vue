@@ -43,9 +43,11 @@ const installableNow = computed(() => {
     .filter(c => c.kind === 'cli' && !busy.has(c.name))
     .map(c => c.name)
 })
+// 审计修复：原表达式 `c.state === 'outdated' === false` 按优先级恒为真（非 outdated 即通过），
+// 运行时 missing/failed、CLI installing/failed 都会被当作"第 1 步已完成"。git/grok 为可选组件。
+const OPTIONAL_COMPONENTS = new Set(['git', 'grok'])
 const componentsReady = computed(() =>
-  (status.value?.components ?? []).every(c => c.state === 'installed' || c.state === 'outdated' === false || c.name === 'git' || c.name === 'grok') &&
-  missingComponents.value.filter(c => c.kind === 'cli').length === 0)
+  (status.value?.components ?? []).every(c => c.state === 'installed' || OPTIONAL_COMPONENTS.has(c.name)))
 
 async function refresh() {
   try {
