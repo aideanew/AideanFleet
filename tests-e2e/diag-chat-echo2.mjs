@@ -1,7 +1,7 @@
 /** 复刻 reconnect test3 的完整流程，定位回显渲染断点 */
 import { chromium } from 'playwright'
 
-const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:5000'
+const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:3100'
 const marker = 'diag2-' + Date.now()
 const frames = []
 const sockets = []

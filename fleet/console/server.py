@@ -480,7 +480,7 @@ def _run_started_at(pid: str) -> str | None:
                 return str(row.get("timestamp") or "") or None
     except Exception as _exc:
         import sys as _sys
-        print("[steer_debug]", type(_exc).__name__, _exc, file=_sys.stderr, flush=True)
+        print("[run_started_at] 读取事件失败:", type(_exc).__name__, _exc, file=_sys.stderr, flush=True)
         return None
     return None
 

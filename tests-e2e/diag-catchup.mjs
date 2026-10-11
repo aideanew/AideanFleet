@@ -1,7 +1,7 @@
 /** 复刻 reconnect test2：断网→降级→恢复，抓 events 请求 URL 序列 */
 import { chromium } from 'playwright'
 
-const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:5000'
+const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:3100'
 const eventCalls = []
 const netEvents = []
 const browser = await chromium.launch()

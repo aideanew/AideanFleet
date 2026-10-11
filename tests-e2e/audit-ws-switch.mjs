@@ -7,7 +7,7 @@
  */
 import { chromium } from 'playwright'
 
-const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:5000'
+const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:3100'
 const FROM = 'Test09181120' // P-008
 const TO_ID = 'P-007'       // Test09171500
 
