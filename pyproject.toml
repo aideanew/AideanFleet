@@ -29,6 +29,7 @@ packages = { find = { include = ["fleet*"] } }
 "fleet.prompts" = ["*.md"]
 "fleet.harness" = ["profiles/*.yaml"]
 "fleet.kernel" = ["_migrations/*.sql"]
+"fleet.setup" = ["_manifest.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

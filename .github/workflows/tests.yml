@@ -87,9 +87,12 @@ jobs:
       - name: Build wheel
         run: |
           python -m pip install --upgrade pip build
+          python scripts/sync_migrations.py
+          python scripts/sync_migrations.py --check
           python -m build --wheel
           python -m pip install dist/*.whl
           python -c "from importlib.resources import files; p = files('fleet.console').joinpath('dist/index.html'); assert p.is_file(), 'wheel 缺少前端 dist'"
+          python -c "from importlib.resources import files; assert files('fleet.kernel').joinpath('_migrations/002_goal_requirements_plan_decision.sql').is_file(), 'wheel 缺迁移 SQL'; assert files('fleet.setup').joinpath('_manifest.json').is_file(), 'wheel 缺 setup manifest'"
           echo "wheel 校验通过：dist 已打进包内"
 
       - uses: actions/upload-artifact@v4
