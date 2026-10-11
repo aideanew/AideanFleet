@@ -182,7 +182,14 @@ export interface GoalsListResponse {
 }
 
 export interface AttentionResponse {
-  counts: Record<string, unknown>;
+  counts: {
+    needs_user: number;
+    running: number;
+    blocked: number;
+    done: number;
+    open: number;
+    superseded: number;
+  };
   needs_user: Array<Todo>;
   running: Array<Todo>;
   blocked: Array<Todo>;
@@ -251,7 +258,7 @@ export interface SetupStatusResponse {
 }
 
 export interface SetupInstallRequest {
-  components: Array<Name>;
+  components: Array<"python" | "node" | "npm" | "git" | "claude" | "codex" | "opencode" | "gemini" | "cline" | "grok">;
   mirror?: "auto" | "official" | "cn";
 }
 

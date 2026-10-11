@@ -79,7 +79,14 @@ def safe_prop(name: str) -> str:
 
 def ts_type(schema: dict, source_file: str, contracts: dict[str, dict], indent: str = "") -> str:
     if "$ref" in schema:
-        name, _ = resolve_ref(schema["$ref"], source_file, contracts)
+        name, target = resolve_ref(schema["$ref"], source_file, contracts)
+        frag = schema["$ref"].split("#", 1)[1] if "#" in schema["$ref"] else ""
+        if "/properties/" in frag:
+            # 审计修复：指向某个属性的 JSON Pointer（…/properties/name）没有对应的具名类型，
+            # 原实现输出不存在的类型名（如 Name），vue-tsc 报 TS2304。这里内联目标类型。
+            target_file = schema["$ref"].split("#", 1)[0] or source_file
+            return ts_type(target, target_file if target_file in contracts else source_file,
+                           contracts, indent)
         return name
     if "const" in schema:
         return json.dumps(schema["const"])

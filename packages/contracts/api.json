@@ -176,7 +176,33 @@
        "done",
        "open",
        "superseded"
-      ]
+      ],
+      "properties": {
+       "needs_user": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "running": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "blocked": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "done": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "open": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "superseded": {
+        "type": "integer",
+        "minimum": 0
+       }
+      }
      },
      "needs_user": {
       "type": "array",
