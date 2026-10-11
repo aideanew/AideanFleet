@@ -11,6 +11,7 @@ import FormInput from '@/components/FormInput.vue'
 import { useConfigStore } from '@/stores/config'
 import { useAuthStore } from '@/stores/auth'
 import { api } from '@/api/client'
+import HarnessAuthCard from '@/components/HarnessAuthCard.vue'
 import { toast } from '@/composables/useToast'
 import type { ExecutorItem, RunningExecutor } from '@/api/types'
 
@@ -106,6 +107,7 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="page">
+    <HarnessAuthCard />
     <header class="page-head">
       <div class="page-title">
         <h2>执行体</h2>

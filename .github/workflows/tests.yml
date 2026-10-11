@@ -35,8 +35,11 @@ jobs:
         pip install -e .
       shell: bash
 
-    - name: Run tests
+    - name: Guard（契约一致 + 迁移同步 + 全量测试）
       run: |
+        python scripts/sync_migrations.py
+        python scripts/contracts_gen.py --check
+        python scripts/sync_migrations.py --check
         python -m pytest tests --tb=short -q
       shell: bash
 

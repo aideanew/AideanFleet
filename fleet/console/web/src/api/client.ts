@@ -1,6 +1,6 @@
 /**
  * 控制台 REST 客户端。
- * - 默认同源（server.py 已托管 dist，且 dev 模式经 vite 代理到 127.0.0.1:5000）
+ * - 默认同源（server.py 已托管 dist，且 dev 模式经 vite 代理到 127.0.0.1:3100）
  * - 令牌三层兼容：Authorization Bearer > cookie fleet_token > ?token=（与 server.py token_of 对齐）
  * - VITE_USE_MOCK=true 时全部走 src/mock，不等后端联调
  */
@@ -53,7 +53,7 @@ export class ApiFail extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers || {})
   if (init.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json; charset=utf-8')

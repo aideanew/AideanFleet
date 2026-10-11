@@ -45,6 +45,10 @@ class KernelError(Exception):
     """内核状态/写回非法操作。"""
 
 
+class DecisionAlreadyMade(KernelError):
+    """计划变更已被决策（DECISION_ALREADY_MADE，errors.json）。"""
+
+
 class Kernel:
     """Todo 内核：goal/todo/claim/lease/attempts/quota/events 的唯一写入口。"""
 
@@ -107,6 +111,46 @@ class Kernel:
             )
             self._event(conn, "goal:created", goal_id=gid, title=title)
         return gid
+
+    def create_goal_with_plan(
+        self,
+        title: str,
+        requirements: str,
+        workspace: str = "",
+        *,
+        role: str = "planner",
+        todo_id: str | None = None,
+    ) -> tuple[str, str]:
+        """F-02 修复：生产入口。同事务建 goal（含 requirements/workspace）+ kind=plan 的规划 todo。
+
+        事件 goal:created 与 todo:created 同事务落 outbox。返回 (goal_id, plan_todo_id)。
+        """
+        gid = f"G-{int(time.time() * 1000):x}-{next(_SEQ)}"
+        tid = todo_id or self._new_id()
+        plan_title = f"拆解计划：{title[:80]}"
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO goals (id, title, status, requirements, workspace, created_at)"
+                " VALUES (?,?,?,?,?,?)",
+                (gid, title, "active", requirements, workspace, _now_iso()),
+            )
+            conn.execute(
+                """INSERT INTO todos
+                   (id, goal_id, kind, title, role, depends_on, allowed_files, verify,
+                    done_when, packet, workspace, status, lineage, attempt_count, successor_of,
+                    claimed_by, claim_expires_at, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,'','',0,?,?)""",
+                (
+                    tid, gid, "plan", plan_title, role,
+                    json.dumps([]), json.dumps([]), json.dumps([]),
+                    "产出的计划通过 schema 校验并写入", requirements, workspace,
+                    st.OPEN, tid, _now_iso(), _now_iso(),
+                ),
+            )
+            self._event(conn, "goal:created", goal_id=gid, title=title)
+            self._event(conn, "todo:created", todo_id=tid, goal_id=gid,
+                        todo_kind="plan", title=plan_title, role=role)
+        return gid, tid
 
     def create_todo(
         self,
@@ -427,6 +471,120 @@ class Kernel:
                 (st.OPEN, _now_iso(), todo_id),
             )
             self._event(conn, "todo:reopened", todo_id=todo_id, goal_id=todo["goal_id"], actor=actor)
+        return self.get_todo(todo_id)
+
+    # ------------------------------------------------------------------
+    # Steer 计划变更（TASK-601）：needs_user + plan_decision 承载待确认语义
+    # ------------------------------------------------------------------
+
+    def propose_plan_diff(self, todo_id: str, diff: dict[str, Any]) -> None:
+        """steer/plan todo 产出 PlanDiff → 存 packet + plan_decision=pending + needs_user。"""
+        with self._conn() as conn:
+            todo = self._get(conn, todo_id)
+            if todo["status"] not in (st.CLAIMED, st.RUNNING, st.VERIFYING):
+                raise KernelError(f"todo {todo_id} 状态 {todo['status']} 不可提交计划变更")
+            conn.execute(
+                "UPDATE todos SET status=?, plan_decision='pending', packet=?, updated_at=?,"
+                " claim_expires_at=0 WHERE id=?",
+                (st.NEEDS_USER, json.dumps(diff, ensure_ascii=False), _now_iso(), todo_id),
+            )
+            self._close_open_attempt(conn, todo_id, turn_result="needs_user")
+            self._event(conn, "plan:diff_proposed", todo_id=todo_id, goal_id=todo["goal_id"],
+                        diff=diff)
+
+    def apply_plan_diff(self, todo_id: str, decision: str, *, diff: dict[str, Any] | None = None,
+                        actor: str = "console") -> dict[str, Any]:
+        """原子应用计划变更：approve（add/cancel/modify）或 reject（仅记录）。
+
+        同一 todo 只能决策一次（plan_decision != pending → KernelError/DECISION_ALREADY_MADE）。
+        """
+        if decision not in ("approve", "reject"):
+            raise KernelError(f"非法 decision: {decision}")
+        with self._conn() as conn:
+            todo = self._get(conn, todo_id)
+            if todo["plan_decision"] not in ("", "none", "pending"):
+                raise DecisionAlreadyMade(f"todo {todo_id} 已决策（{todo['plan_decision']}）")
+            if todo["status"] not in (st.NEEDS_USER, st.CLAIMED, st.RUNNING, st.VERIFYING):
+                raise KernelError(f"todo {todo_id} 状态 {todo['status']} 无待确认计划变更")
+            if diff is None:
+                try:
+                    diff = json.loads(todo["packet"] or "{}")
+                except json.JSONDecodeError:
+                    diff = {}
+            if todo["status"] != st.NEEDS_USER:
+                # auto 直通路径：同事务先落 needs_user + pending 再应用
+                conn.execute(
+                    "UPDATE todos SET status=?, plan_decision='pending', updated_at=? WHERE id=?",
+                    (st.NEEDS_USER, _now_iso(), todo_id),
+                )
+                self._close_open_attempt(conn, todo_id, turn_result="needs_user")
+                self._event(conn, "plan:diff_proposed", todo_id=todo_id, goal_id=todo["goal_id"],
+                            diff=diff)
+            applied = 0
+            if decision == "approve":
+                for spec in diff.get("add", []):
+                    new_id = spec.get("id") or self._new_id()
+                    conn.execute(
+                        """INSERT INTO todos
+                           (id, goal_id, kind, title, role, depends_on, allowed_files, verify,
+                            done_when, packet, workspace, status, lineage, attempt_count, successor_of,
+                            claimed_by, claim_expires_at, created_at, updated_at)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,'','',0,?,?)""",
+                        (
+                            new_id, todo["goal_id"], "exec", spec.get("title", "新任务"),
+                            spec.get("role", ""), json.dumps(spec.get("depends_on", [])),
+                            json.dumps(spec.get("allowed_files", [])),
+                            json.dumps(spec.get("verify", [])), spec.get("done_when", ""),
+                            f"steer_source={todo_id}", spec.get("workspace", todo["workspace"]),
+                            st.OPEN, self._new_id(), _now_iso(), _now_iso(),
+                        ),
+                    )
+                    self._event(conn, "todo:created", todo_id=new_id, goal_id=todo["goal_id"],
+                                todo_kind="exec", title=spec.get("title", "新任务"),
+                                role=spec.get("role", ""), steer_source=todo_id)
+                    applied += 1
+                for cancel_id in diff.get("cancel", []):
+                    row = conn.execute("SELECT status FROM todos WHERE id=?", (cancel_id,)).fetchone()
+                    if row is None or row["status"] in (st.DONE, st.SUPERSEDED):
+                        continue
+                    conn.execute(
+                        "UPDATE todos SET status=?, updated_at=? WHERE id=?",
+                        (st.SUPERSEDED, _now_iso(), cancel_id),
+                    )
+                    self._event(conn, "todo:successor", todo_id=cancel_id, goal_id=todo["goal_id"],
+                                note=f"steer 取消（source={todo_id}）")
+                    applied += 1
+                for m in diff.get("modify", []):
+                    fields = m.get("fields") or {}
+                    target = conn.execute(
+                        "SELECT status FROM todos WHERE id=?", (m.get("todo_id"),)).fetchone()
+                    if target is None or target["status"] in (st.DONE, st.SUPERSEDED):
+                        continue
+                    sets, args = [], []
+                    for key in ("title", "done_when", "packet"):
+                        if key in fields:
+                            sets.append(f"{key}=?")
+                            args.append(str(fields[key]))
+                    for key in ("allowed_files", "verify"):
+                        if key in fields:
+                            sets.append(f"{key}=?")
+                            args.append(json.dumps(fields[key]))
+                    if sets:
+                        sets.append("updated_at=?")
+                        args.append(_now_iso())
+                        args.append(m["todo_id"])
+                        conn.execute(f"UPDATE todos SET {', '.join(sets)} WHERE id=?", args)
+                        applied += 1
+                new_decision = "approved"
+            else:
+                new_decision = "rejected"
+
+            conn.execute(
+                "UPDATE todos SET plan_decision=?, updated_at=? WHERE id=?",
+                (new_decision, _now_iso(), todo_id),
+            )
+            self._event(conn, "plan:decided", todo_id=todo_id, goal_id=todo["goal_id"],
+                        decision=decision, applied=applied, actor=actor)
         return self.get_todo(todo_id)
 
     def _lineage_attempts(self, conn, lineage: str) -> int:

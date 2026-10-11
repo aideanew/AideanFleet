@@ -8,3 +8,4 @@ model_protocol: openai
 model_flag: "-m"
 output_parser: codex_jsonl
 timeout_idle_s: 180
+login: ["codex", "login"]

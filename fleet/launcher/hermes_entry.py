@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from .launch_core import LaunchRequest, launch_core
+from ..core.ports import DEFAULT_CONSOLE_PORT
 
 
 @dataclass
@@ -20,7 +21,7 @@ class FleetLaunchConfig:
     mode: str  # run | intake | audit | discuss | plan
     tasks: str = "all"
     requirements: str = ""
-    port: int = 5000
+    port: int = DEFAULT_CONSOLE_PORT
     notes: str = ""
     model: str = "auto"
     seats: str = ""
@@ -139,7 +140,7 @@ project: 项目名或路径
 mode: run|intake|audit|discuss|plan
 tasks: all (可选)
 requirements: 需求文档路径或描述 (可选)
-port: 5000 (可选)
+port: 3100 (可选)
 notes: 备注 (可选)
 model: auto (可选)
 seats: product=opencode,frontend=claude,backend=codex (可选，仅discuss模式)
@@ -150,7 +151,7 @@ project: AideanBot
 mode: run
 tasks: all
 requirements: @E:/Code/AideanBot/.docs/PRD.md
-port: 5000
+port: 3100
 notes: PRD已备好，按plan逐一完成
 """)
 

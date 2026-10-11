@@ -3,13 +3,14 @@
 LaunchRequest + launch_core() 替代 CLI 和 Hermes 两条启动路径。
 9步统一流程：env probe → port precheck → ensure_env_file → start console →
 start manager gateway → health check → project register SQLite only →
-open browser 5000 → pull up watch_events_loop
+open browser 3100 → pull up watch_events_loop
 """
 
 from __future__ import annotations
 
 import asyncio
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -22,6 +23,7 @@ from pathlib import Path
 from typing import Optional
 
 from fleet.core import config as fleet_config
+from fleet.core.ports import DEFAULT_CONSOLE_PORT
 from fleet.core.paths import paths
 
 
@@ -33,7 +35,7 @@ class LaunchRequest:
     mode: str  # run | intake | audit | discuss | plan
     tasks: str = "all"
     requirements: str = ""
-    port: int = 5000
+    port: int = DEFAULT_CONSOLE_PORT
     notes: str = ""
     model: str = "auto"
     seats: str = ""
@@ -111,15 +113,24 @@ def _ensure_env_file() -> bool:
     """确保 .env 文件存在（从 .env.example 复制）"""
     p = paths()
     if p.env_file.exists():
-        # A1 迁移：老安装的 .env 里没有 FLEET_SCHEDULER 时补一行默认开（显式设 0 的不受影响）。
         try:
             text = p.env_file.read_text(encoding="utf-8")
+            changed = False
+            # A1 迁移：老安装的 .env 里没有 FLEET_SCHEDULER 时补一行默认开（显式设 0 的不受影响）。
             if not any(line.strip().startswith("FLEET_SCHEDULER=") for line in text.splitlines()):
-                with open(p.env_file, "a", encoding="utf-8") as fh:
-                    fh.write("\n# A1 迁移：常驻调度默认开启（显式设 0 可关闭）\nFLEET_SCHEDULER=1\n")
+                text += "\n# A1 迁移：常驻调度默认开启（显式设 0 可关闭）\nFLEET_SCHEDULER=1\n"
+                changed = True
                 print("  ✓ 已在 .env 补充 FLEET_SCHEDULER=1（常驻调度默认开启）")
+            # ADR-005 迁移：仅当 FLEET_CONSOLE_PORT 恰为 5000 时改写为 3100，其他自定义值不动。
+            port_pattern = re.compile(r"(?m)^FLEET_CONSOLE_PORT=5000\s*$")
+            if port_pattern.search(text):
+                text = port_pattern.sub("FLEET_CONSOLE_PORT=3100", text)
+                changed = True
+                print("  ✓ 已把 .env 的 FLEET_CONSOLE_PORT 从 5000 迁移为 3100（ADR-005）")
+            if changed:
+                p.env_file.write_text(text, encoding="utf-8")
         except Exception as e:
-            print(f"  ⚠ FLEET_SCHEDULER 迁移检查失败（忽略）: {e}")
+            print(f"  ⚠ .env 迁移检查失败（忽略）: {e}")
         return True
     if p.env_example_file.exists():
         p.env_file.write_text(
@@ -186,18 +197,20 @@ def _start_manager_gateway(port: int = 9900) -> bool:
         return False
 
 
-def _health_check(console_port: int = 5000, manager_port: int = 9900) -> dict[str, bool]:
+def _health_check(console_port: int = DEFAULT_CONSOLE_PORT, manager_port: int = 9900) -> dict[str, bool]:
     """单次探活检查（静默，不打印；进度输出由 _wait_console_healthy 统一负责）"""
     import json
     import urllib.request
 
+    # F-07 修复：回环探活绕过系统代理
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     result = {"console": False, "manager": False}
 
     # 检查控制台
     try:
         url = f"http://127.0.0.1:{console_port}/api/health"
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with opener.open(req, timeout=3) as resp:
             data = json.loads(resp.read())
             if (isinstance(data.get("version"), str) and data["version"]
                     and all(data.get(key) is True for key in ("db", "events", "config"))):
@@ -209,7 +222,7 @@ def _health_check(console_port: int = 5000, manager_port: int = 9900) -> dict[st
     try:
         url = f"http://127.0.0.1:{manager_port}/.well-known/agent-card.json"
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with opener.open(req, timeout=3) as resp:
             data = json.loads(resp.read())
             if data.get("name") == "Hermes-Manager":
                 result["manager"] = True
@@ -276,7 +289,7 @@ def _register_project(project_name: str, project_path: str) -> Optional[str]:
     return pid
 
 
-def _open_browser(port: int = 5000) -> None:
+def _open_browser(port: int = DEFAULT_CONSOLE_PORT) -> None:
     """打开浏览器"""
     print(f"\n=== 打开浏览器 ===")
     url = f"http://127.0.0.1:{port}/"
@@ -306,8 +319,8 @@ def _start_watch_events_loop(project_id: str) -> Optional[asyncio.Task]:
 
 
 def _wait_console_healthy(
-    console_port: int,
-    manager_port: int,
+    console_port: int = DEFAULT_CONSOLE_PORT,
+    manager_port: int = 9900,
     reused: bool = False,
     timeout_s: float = 20.0,
     interval_s: float = 0.5,
@@ -409,7 +422,7 @@ def launch_core(request: LaunchRequest) -> dict:
     result["project_id"] = pid
     result["steps"].append({"step": "project_register", "ok": pid is not None, "pid": pid})
 
-    # Step 8: open browser 5000
+    # Step 8: open browser 3100
     print("\n[8/9] 打开浏览器")
     _open_browser(request.port)
     result["steps"].append({"step": "open_browser", "ok": True})

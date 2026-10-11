@@ -44,7 +44,7 @@ def main() -> None:
     print("\n=== 项目配置 ===")
     project_path = get_user_input("项目路径", "E:/Code/AideanFleet")
     project_name = get_user_input("项目名称", default_project_name(project_path))
-    port = int(get_user_input("控制台端口", "5000"))
+    port = int(get_user_input("控制台端口", str(DEFAULT_CONSOLE_PORT)))
     mode = get_user_input("启动模式", "run")
 
     # 构建 LaunchRequest

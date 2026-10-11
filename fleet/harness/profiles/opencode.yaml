@@ -8,3 +8,4 @@ model_protocol: openai
 model_flag: "-m"
 output_parser: opencode_json
 timeout_idle_s: 180
+login: ["opencode", "auth", "login"]

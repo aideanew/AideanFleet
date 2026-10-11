@@ -1,5 +1,5 @@
 """这是什么：AideanFleet 控制台服务（FastAPI + WebSocket 重建版，角色A · CORE-02）。
-怎么用：python fleet/console/server.py  ->  http://127.0.0.1:5000 ；uvicorn.run(app) 亦可。
+怎么用：python fleet/console/server.py  ->  http://127.0.0.1:3100 ；uvicorn.run(app) 亦可。
 兼容：旧路由字段名全部保留（含 GBK 请求体回退、cookie fleet_token 回退、dist/→static/ 双目录）；
      新增 WS（7 种服务端消息 / 3 种客户端消息）、/api/control/confirm、/api/tasks、/tasks/dispatch。
 会话：内存 token，有效期 FLEET_SESSION_EXPIRE_SECONDS > basic.lock_ttl_minutes*60 > 旧 lock_screen_seconds。
@@ -22,6 +22,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 
 from fleet.core import config as fleet_config
+from fleet.core.ports import DEFAULT_CONSOLE_PORT
 from fleet.core import db, events, plan
 from fleet.core import state_machine as sm
 from fleet.core.paths import paths
@@ -31,7 +32,7 @@ from fleet.governance import ApprovalManager, BudgetManager, UsageAggregator
 VERSION = "0.3.0"  # REL-01：版本统一（pyproject.toml 同步）
 
 HOST = os.environ.get("FLEET_CONSOLE_HOST", "127.0.0.1")
-PORT = int(os.environ.get("FLEET_CONSOLE_PORT", "5000"))
+PORT = int(os.environ.get("FLEET_CONSOLE_PORT", str(DEFAULT_CONSOLE_PORT)))
 
 CONSOLE_DIR = Path(__file__).resolve().parent
 DIST_DIR = CONSOLE_DIR / "dist"
@@ -319,7 +320,9 @@ async def _event_pump() -> None:
 # 中间件：会话闸门（/api/health、/api/session、/api/launch-resolve、静态页豁免）
 # ---------------------------------------------------------------------------
 
-_EXEMPT_PATHS = {"/api/health", "/api/session", "/api/projects/names", "/api/launch-resolve", "/api/launch-event"}
+# /api/setup/* 免会话但仅回环（TASK-203，identity B1：路由内再校验来源地址）
+_EXEMPT_PREFIXES = ("/api/setup/", "/api/config/fleet")
+_EXEMPT_PATHS = {"/api/health", "/api/session", "/api/projects/names", "/api/launch-resolve", "/api/launch-event", "/api/setup/status"}
 # launch-event 豁免会话：契约 docs/契约.md §4 与 派工3 T5/T6 要求启动器（Hermes/CLI）
 # 不带 token 直接 POST；仅监听 127.0.0.1，事件写入前仍过 events.scrub 脱敏。
 # projects/names 豁免：锁屏候选列表（只含 id/name，无敏感字段）。
@@ -328,7 +331,7 @@ _EXEMPT_PATHS = {"/api/health", "/api/session", "/api/projects/names", "/api/lau
 @app.middleware("http")
 async def session_gate(request: Request, call_next):
     path = request.url.path
-    if path not in _EXEMPT_PATHS and path.startswith("/api/"):
+    if path not in _EXEMPT_PATHS and not path.startswith(_EXEMPT_PREFIXES) and path.startswith("/api/"):
         session = check_session(token_of(request))
         if not session:
             return JSONResponse(
@@ -475,7 +478,9 @@ def _run_started_at(pid: str) -> str | None:
         for row in events.read(pid, since=0):
             if str(row.get("action") or "").startswith(("task:", "launch:")):
                 return str(row.get("timestamp") or "") or None
-    except Exception:
+    except Exception as _exc:
+        import sys as _sys
+        print("[steer_debug]", type(_exc).__name__, _exc, file=_sys.stderr, flush=True)
         return None
     return None
 
@@ -637,11 +642,45 @@ async def api_control_confirm(request: Request):
     return {"ok": True, "event": row}
 
 
+def _kernel_instance():
+    from fleet.kernel import Kernel
+
+    return Kernel(paths().data_dir / 'kernel.db')
+
+
+def _steer_from_chat(message: str) -> str | None:
+    """S6：存在活跃 kernel goal 时把普通对话转 steer todo（A3 对话即控制面）。
+
+    绑定口径（偏离说明，见进度与决策）：不新增 session 字段——若当前 kernel
+    恰有一个 active goal，即视为该会话的当前目标；0 个或多个时不猜测，回退旧行为。
+    """
+    try:
+        kernel = _kernel_instance()
+        active = [g for g in kernel.attention()["goals"] if g.get("status") == "active"]
+        if len(active) != 1:
+            return None
+        goal = active[0]
+        workspace = str(goal.get("workspace") or "")
+        return kernel.create_todo(
+            goal["id"], kind="steer", title=f"调整计划：{message[:40]}",
+            packet=message, role="planner", workspace=workspace,
+        )
+    except Exception:
+        return None
+
+
 def _process_chat(session: dict[str, Any], project: str, message: str) -> dict[str, Any]:
     """统一对话处理：识别“启动新项目”指令 → intake 注册项目/三级计划/任务建册 → 常驻调度接管；
-    普通消息原样回执。返回 {"reply", "new_project"}。"""
+    kernel goal 活跃时的普通消息 → steer todo（S6 对话即控制面）；否则原样回执。
+    返回 {"reply", "new_project", "steer_todo_id"?}。"""
     intent = intake.detect_launch_intent(message)
     if not intent:
+        steer_id = _steer_from_chat(message)
+        if steer_id:
+            return {"reply": (f"【Planner·回执】已收到调整指示：「{message[:80]}"
+                              f"{'…' if len(message) > 80 else ''}」，已生成计划变更任务 {steer_id}"
+                              "（auto 模式自动应用；step 模式待你在看板确认）。"),
+                    "new_project": None, "steer_todo_id": steer_id}
         reply = (f"【Manager·回执】已收到你的指令：「{message[:80]}{'…' if len(message) > 80 else ''}」。"
                  "已进入事件流，调度器将据此调整任务计划。")
         return {"reply": reply, "new_project": None}
@@ -696,7 +735,8 @@ async def api_chat(request: Request):
         extra={"new_project": outcome["new_project"]} if outcome.get("new_project") else None,
     )
     return {"ok": True, "user_event": user_row, "manager_event": manager_row,
-            "reply": outcome["reply"], "new_project": outcome.get("new_project")}
+            "reply": outcome["reply"], "new_project": outcome.get("new_project"),
+            "steer_todo_id": outcome.get("steer_todo_id")}
 
 
 @app.post("/api/notify/test")
@@ -878,7 +918,9 @@ def _resolve_section(name: str) -> str:
 
 
 @app.get("/api/config/{section}")
-def api_config_get(section: str):
+def api_config_get(section: str, request: Request):
+    if section == "fleet":  # TASK-301：新契约路由优先（避免 {section} 遮蔽）
+        return config_api.config_fleet_get(request=request)
     key = _resolve_section(section)
     if key not in fleet_config.SECTIONS:
         return JSONResponse({"ok": False, "reason": "unknown_section", "section": section,
@@ -913,50 +955,23 @@ async def api_config_post(request: Request, section: str):
 
 
 # ---------------------------------------------------------------------------
-# Kernel 投影（P1：看板只读 + typed 动作；数据源为单写者内核 fleet.db）
+# Kernel 投影（P1：看板只读 + typed 动作）—— 路由实现在 kernel_api.py（TASK-103）
 # ---------------------------------------------------------------------------
 
+from fleet.console.kernel_api import router as kernel_api_router  # noqa: E402
 
-def _kernel() -> "Any":
-    from fleet.kernel import Kernel
+app.include_router(kernel_api_router)
 
-    return Kernel(paths().data_dir / "kernel.db")
+from fleet.console.setup_api import router as setup_api_router  # noqa: E402
+from fleet.console import config_api  # noqa: E402
 
+app.include_router(setup_api_router)
 
-@app.get("/api/kernel/attention")
-def api_kernel_attention():
-    """首屏注意力队列：待决策 / 运行中 / 阻塞 / 刚完成（LoopX 投影语义）。"""
-    return {"ok": True, **_kernel().attention()}
-
-
-@app.get("/api/kernel/todos")
-def api_kernel_todos(goal_id: str | None = None, status: str | None = None):
-    todos = _kernel().todos(goal_id=goal_id, status=status)
-    return {"ok": True, "todos": todos, "total": len(todos)}
-
-
-@app.get("/api/kernel/events")
-def api_kernel_events(limit: int = 100):
-    from fleet.kernel import store
-
-    kernel = _kernel()
-    pending = kernel.pending_events(limit=min(max(limit, 1), 500))
-    conn = store.connect(kernel.db_path)
-    recent = [dict(r) for r in conn.execute(
-        "SELECT seq, ts, kind, todo_id, goal_id, payload FROM events ORDER BY seq DESC LIMIT ?",
-        (min(max(limit, 1), 500),))]
-    return {"ok": True, "pending": len(pending), "events": recent}
-
-
-@app.post("/api/kernel/todos/{todo_id}/reopen")
-def api_kernel_reopen(todo_id: str):
-    """typed 动作：人工解除 blocked / needs_user → open。"""
-    try:
-        todo = _kernel().reopen(todo_id, actor="console")
-    except Exception as exc:
-        return JSONResponse({"ok": False, "reason": str(exc)}, status_code=409)
-    broadcast({"type": "task_update", "taskId": todo_id, "status": todo["status"]})
-    return {"ok": True, "todo": {"id": todo["id"], "status": todo["status"]}}
+app.add_api_route("/api/config/fleet", config_api.config_fleet_get, methods=["GET"])
+app.add_api_route("/api/config/fleet", config_api.config_fleet_put, methods=["PUT"])
+app.add_api_route("/api/setup/secrets/{env_name}", config_api.secret_put, methods=["PUT"])
+app.add_api_route("/api/setup/models/{name}/test", config_api.model_test, methods=["POST"])
+app.add_api_route("/api/setup/login/{harness}", config_api.harness_login, methods=["POST"])
 
 
 # ---------------------------------------------------------------------------

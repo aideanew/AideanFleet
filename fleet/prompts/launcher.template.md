@@ -14,13 +14,13 @@ Fleet启动器 - 只启动/传话/监督，不开发
 ### 项目路径：{project_path}
 ### 端点：
 - UI: http://127.0.0.1:{ui_port}
-- Console: http://127.0.0.1:5000/api/health
+- Console: http://127.0.0.1:3100/api/health
 - Manager: http://127.0.0.1:9900/.well-known/agent-card.json
 
 ## 3. 执行流程
 1. 版本探测：python --version, hermes --version
-2. 端口检查：5000/9900/{ui_port}
-3. 服务启动：控制台(5000), Manager网关(9900)
+2. 端口检查：3100/9900/{ui_port}
+3. 服务启动：控制台(3100), Manager网关(9900)
 4. 健康检查：GET /api/health, GET agent-card.json
 5. 项目注册：projects.json无则创建
 6. 打开浏览器
@@ -77,6 +77,6 @@ Worker={worker_model}
 - 所有错误上报Manager处理
 
 ## 9. 输出要求
-- 实时进度写入 POST http://127.0.0.1:5000/api/launch-event
+- 实时进度写入 POST http://127.0.0.1:3100/api/launch-event
 - 终局输出完成度表：
   | 角色 | 平台 | 模型 | 任务 | 评分 |

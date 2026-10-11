@@ -179,7 +179,7 @@ const mockConfigs: Record<string, unknown> = {
   basic: {
     project_name: 'AideanFleet',
     console_host: '127.0.0.1',
-    console_port: 5000,
+    console_port: 3100,
     manager_port: 9900,
     ui_port: 3333,
     allowed_roots: ['E:/Code'],
@@ -313,7 +313,7 @@ export async function mockLaunchResolve(project: string, mode: string): Promise<
   return {
     ok: true,
     mode: mode || 'BOOT',
-    ui_url: `http://127.0.0.1:5000/?project=${project}`,
+    ui_url: `http://127.0.0.1:3100/?project=${project}`,
     profile_source: 'E:/Code/AideanFleet/.env',
     missing: [],
   }

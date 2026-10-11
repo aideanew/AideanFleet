@@ -55,8 +55,9 @@ def test_trigger_set_enabled(tmp_path, monkeypatch):
     assert trigger.is_enabled(EventType.TASK_COMPLETED) is False
 
 
-def test_trigger_without_sender():
-    """无发送回调时 trigger 返回失败而非抛异常"""
+def test_trigger_without_sender(tmp_path, monkeypatch):
+    """无发送回调时 trigger 返回失败而非抛异常（写文件必须落在 tmp，防 F-11 仓库污染）"""
+    monkeypatch.chdir(tmp_path)
     trigger = NotificationTrigger()
     trigger.register_sender(None)
     trigger.set_enabled(EventType.TASK_COMPLETED, True)

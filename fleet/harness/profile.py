@@ -27,7 +27,7 @@ PROFILES_DIR = Path(__file__).resolve().parent / "profiles"
 
 KNOWN_FIELDS = {
     "name", "detect", "auth_check", "invoke", "prompt_via", "model_protocol",
-    "model_flag", "output_parser", "session_resume", "timeout_idle_s",
+    "model_flag", "output_parser", "session_resume", "timeout_idle_s", "login",
 }
 
 
@@ -43,6 +43,7 @@ class HarnessProfile:
     output_parser: str = "plain"
     session_resume: list[str] = field(default_factory=list)
     timeout_idle_s: int = 180
+    login: list[str] = field(default_factory=list)
 
 
 def load_profile(name: str, profiles_dir: str | Path | None = None) -> HarnessProfile:
@@ -63,7 +64,7 @@ def load_profile(name: str, profiles_dir: str | Path | None = None) -> HarnessPr
     invoke = list(data.get("invoke") or [])
     if not invoke:
         raise ValueError(f"profile {name} 缺 invoke 命令骨架")
-    for key in ("detect", "auth_check", "invoke", "session_resume"):
+    for key in ("detect", "auth_check", "invoke", "session_resume", "login"):
         if key in data and not isinstance(data.get(key), list):
             raise ValueError(f"profile {name} 的 {key} 必须是列表")
     return HarnessProfile(
@@ -77,6 +78,7 @@ def load_profile(name: str, profiles_dir: str | Path | None = None) -> HarnessPr
         output_parser=str(data.get("output_parser") or "plain"),
         session_resume=[str(x) for x in data.get("session_resume") or []],
         timeout_idle_s=int(data.get("timeout_idle_s") or 180),
+        login=[str(x) for x in data.get("login") or []],
     )
 
 

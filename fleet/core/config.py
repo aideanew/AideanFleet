@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .paths import paths
+from .ports import DEFAULT_CONSOLE_PORT
 
 # ---------------------------------------------------------------------------
 # secrets/.env 真值注入（模块导入时一次性执行，幂等 setdefault）：
@@ -360,7 +361,7 @@ _SCALAR_SPECS: dict[str, tuple[tuple[str, Any, Any], ...]] = {
     "basic": (
         ("project_name", str, "AideanFleet"),
         ("console_host", str, "127.0.0.1"),
-        ("console_port", int, 5000),
+        ("console_port", int, DEFAULT_CONSOLE_PORT),
         ("manager_port", int, 9900),
         ("ui_port", int, 3333),
         ("allowed_roots", list, []),

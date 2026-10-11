@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 
 import pytest
 
@@ -86,10 +87,10 @@ def test_next_and_writeback_roundtrip(isolated_root):
     code = cli.main(["next", "--agent", "claude", "--json"])
     assert code == 0
     todo = kernel.get_todo(tid)
-    assert todo["status"] == st.CLAIMED
+    assert todo["status"] == st.RUNNING  # TASK-401：next 直接进 running（宿主随时可 writeback）
     assert todo["claimed_by"] == "claude"
 
-    code = cli.main(["writeback", "--todo", tid, "--verdict", "blocked", "--note", "缺依赖"])
+    code = cli.main(["writeback", "--todo", tid, "--agent", "claude", "--verdict", "blocked", "--note", "缺依赖"])
     assert code == 0
     assert kernel.get_todo(tid)["status"] == st.BLOCKED
 
@@ -111,3 +112,64 @@ def test_doctor_config_prints_effective(isolated_root, capsys, monkeypatch):
     assert cli.main(["doctor", "--config"]) == 0
     out = capsys.readouterr().out
     assert "allowed_roots = ['E:/Demo']  [toml]" in out
+
+
+def test_next_enters_running_state(isolated_root):
+    """TASK-401/F-03：fleet next 后 todo 处于 running（此前停在 claimed，writeback done 必失败）。"""
+    kernel = Kernel(isolated_root / "data" / "kernel.db")
+    gid = kernel.create_goal("g")
+    tid = kernel.create_todo(gid, title="t", role="fe-1", verify=["x"], workspace=str(isolated_root))
+
+    cli.main(["next", "--agent", "claude", "--json"])
+    todo = kernel.get_todo(tid)
+    assert todo["status"] == st.RUNNING
+    assert todo["claimed_by"] == "claude"
+
+
+def test_writeback_done_runs_gate_and_succeeds(isolated_root, capsys):
+    """TASK-401/F-04：writeback done 先跑机器门；verify 通过 → done。"""
+    kernel = Kernel(isolated_root / "data" / "kernel.db")
+    gid = kernel.create_goal("g")
+    checker = isolated_root / "ok_checker.py"
+    checker.write_text("import sys; sys.exit(0)\n", encoding="utf-8")
+    tid = kernel.create_todo(gid, title="t", role="fe-1",
+                             verify=[f'"{sys.executable}" "{str(checker).replace(chr(92), "/")}"'],
+                             workspace=str(isolated_root))
+    cli.main(["next", "--agent", "claude"])
+    code = cli.main(["writeback", "--todo", tid, "--agent", "claude",
+                     "--verdict", "done", "--note", "改完了"])
+    assert code == 0
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert out["status"] == st.DONE
+    # 证据落盘：gate.json
+    gate_file = isolated_root / "data" / "evidence" / tid / "gate.json"
+    assert gate_file.is_file() and json.loads(gate_file.read_text(encoding="utf-8"))["ok"] is True
+
+
+def test_writeback_done_gate_fail_becomes_successor(isolated_root, capsys):
+    """TASK-401：verify 失败 → superseded + 新 successor open（packet 带失败摘要）。"""
+    kernel = Kernel(isolated_root / "data" / "kernel.db")
+    gid = kernel.create_goal("g")
+    checker = isolated_root / "fail_checker.py"
+    checker.write_text("import sys; print('boom'); sys.exit(2)\n", encoding="utf-8")
+    tid = kernel.create_todo(gid, title="实现", role="fe-1",
+                             verify=[f'"{sys.executable}" "{str(checker).replace(chr(92), "/")}"'],
+                             workspace=str(isolated_root))
+    cli.main(["next", "--agent", "claude"])
+    code = cli.main(["writeback", "--todo", tid, "--agent", "claude", "--verdict", "done"])
+    assert code == 0
+    assert kernel.get_todo(tid)["status"] == st.SUPERSEDED
+    rework = [t for t in kernel.todos() if t["status"] == st.OPEN]
+    assert rework and rework[0]["lineage"] == tid
+    assert "机器门未通过" in rework[0]["packet"]
+
+
+def test_writeback_agent_mismatch_rejected(isolated_root):
+    """B4：--agent 与 claimed_by 不一致 → 退出码非 0 且状态不变。"""
+    kernel = Kernel(isolated_root / "data" / "kernel.db")
+    gid = kernel.create_goal("g")
+    tid = kernel.create_todo(gid, title="t", verify=["x"], workspace=str(isolated_root))
+    kernel.claim(tid, worker="other-host")
+    code = cli.main(["writeback", "--todo", tid, "--agent", "claude", "--verdict", "blocked"])
+    assert code == 3
+    assert kernel.get_todo(tid)["status"] == st.CLAIMED  # 状态不变

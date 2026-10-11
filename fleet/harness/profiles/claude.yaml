@@ -9,3 +9,4 @@ model_protocol: anthropic
 output_parser: claude_stream_json
 session_resume: ["--resume", "{session_id}"]
 timeout_idle_s: 180
+login: ["claude"]

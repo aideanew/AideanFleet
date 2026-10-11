@@ -95,3 +95,20 @@ def test_opencode_parser():
     events = list(get_parser("opencode_json")(iter(lines)))
     assert any(e.type == "text" and e.text == "part-1" for e in events)
     assert any(e.type == "session" and e.text == "op-1" for e in events)
+
+
+def test_profiles_declare_login_commands():
+    """TASK-302：claude/codex/opencode 声明 login；无 login 的旧 profile 仍可加载。"""
+    from fleet.harness.profile import HarnessProfile
+
+    assert load_profile("claude").login == ["claude"]
+    assert load_profile("codex").login == ["codex", "login"]
+    assert load_profile("opencode").login == ["opencode", "auth", "login"]
+
+    import fleet.harness.yaml_min as yaml_min
+
+    data = yaml_min.parse("name: minimal\ninvoke: [x, run]\n")
+    profile = HarnessProfile(
+        name="minimal", detect=data.get("detect", []), auth_check=data.get("auth_check", []),
+        invoke=data["invoke"])
+    assert profile.login == []

@@ -51,8 +51,8 @@ def _harness_chain_for(role: str) -> list[str]:
         from ..core.fleet_toml import load_config
 
         cfg = load_config()
-        role_cfg = (cfg.get("roles") or {}).get(role) or {}
-        chain = role_cfg.get("harness") or []
+        role_cfg = cfg.roles.get(role)
+        chain = role_cfg.harness if role_cfg else []
         return [str(h) for h in chain] or list(DEFAULT_HARNESS_CHAIN)
     except Exception:
         return list(DEFAULT_HARNESS_CHAIN)
@@ -129,14 +129,17 @@ def run_once(
         except Exception:
             pass
 
-    # ---- plan 任务：Planner（LLM 拆解） ----
-    if todo["kind"] == "plan":
+    # ---- plan / steer 任务：Planner（LLM 拆解 / 对话改计划） ----
+    if todo["kind"] in ("plan", "steer"):
         if planner_client is None:
             return {"action": "writeback", "todo": todo["id"],
                     "result": TurnResult(verdict=st.VERDICT_BLOCKED,
                                          note="未配置 planner 模型客户端")}
         kernel.mark_verifying(todo["id"], worker)
-        result = _run_planner(kernel, todo["id"], planner_client, _renew)
+        if todo["kind"] == "plan":
+            result = _run_planner(kernel, todo["id"], planner_client, _renew)
+        else:
+            result = _run_steer(kernel, todo["id"], planner_client, _renew)
         return {"action": "writeback", "todo": todo["id"], "result": result, "claimed": claimed}
 
     # ---- exec 任务：harness → gate → 写回 ----
@@ -196,6 +199,21 @@ def _run_planner(kernel: Kernel, todo_id: str, client, renew: Callable[[], None]
     from ..planner import run_plan_todo
 
     return run_plan_todo(kernel, todo_id, client)
+
+
+def _run_steer(kernel: Kernel, todo_id: str, client, renew: Callable[[], None]) -> TurnResult:
+    """steer todo：auto 模式（fleet.toml runtime.scheduler=auto）直接应用，否则 needs_user。"""
+    renew()
+    from ..planner.steer import run_steer_todo
+
+    auto = False
+    try:
+        from ..core.fleet_toml import load_config
+
+        auto = (load_config().scheduler == "auto")
+    except Exception:
+        pass
+    return run_steer_todo(kernel, todo_id, client, auto_apply=auto)
 
 
 def run_loop(

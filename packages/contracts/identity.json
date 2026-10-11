@@ -1,0 +1,24 @@
+{
+  "$id": "identity.json",
+  "title": "身份与权限契约",
+  "facts": {
+    "deployment": "单机单用户；控制台默认只监听 127.0.0.1（已确认 server.py:33 FLEET_CONSOLE_HOST 默认 127.0.0.1）",
+    "session": "解锁 = 输入已存在的项目名换取内存 token，TTL 默认 3600s（server.py:123-167）；进程重启即失效"
+  },
+  "principals": {
+    "owner": "坐在本机前的用户：浏览器会话持有 token",
+    "host_agent": "宿主内 /fleet skill 所在 CLI 进程：通过本机 `fleet next/writeback` 直连 kernel.db，不经 HTTP，凭 OS 用户权限",
+    "worker": "fleet worker 进程：同上",
+    "installer": "签名安装器 exe（按用户安装）/ fleet setup：本机 OS 用户权限"
+  },
+  "roles_enum": ["owner"],
+  "session_claims": {"token": "opaque string", "project": "旧链路项目 id", "expires_at": "unix 秒"},
+  "boundaries": [
+    {"rule": "B1", "text": "所有 /api/setup/* 只接受来源地址 127.0.0.1/::1；否则 403 FORBIDDEN_NON_LOOPBACK——即使 FLEET_CONSOLE_HOST 被改为 0.0.0.0"},
+    {"rule": "B2", "text": "secret 值只进不出：无任何读取 secret 值的接口；日志、事件、证据中出现 secret 值视为缺陷（events.scrub 守门 + TASK-002 密钥扫描）"},
+    {"rule": "B3", "text": "config.fleet.put / setup.* / todos.reopen / plan.decide 属于『管理面』，仅 owner 会话可调用；host_agent/worker 不得经 HTTP 调用它们"},
+    {"rule": "B4", "text": "host_agent 只能写回自己 claim 的 todo（kernel._assert_holder 现状已有；fleet writeback 需补 --agent 与 claimed_by 比对，TASK-401）"},
+    {"rule": "B5", "text": "goal.workspace 必须落在 workspace.allowed_roots 内；越界 422 WORKSPACE_NOT_ALLOWED"}
+  ],
+  "out_of_scope": "多用户、远程访问、RBAC——MUST NOT（见 current-plan §3.2）"
+}

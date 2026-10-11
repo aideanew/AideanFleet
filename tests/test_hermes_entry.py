@@ -42,7 +42,7 @@ mode: audit"""
     assert config.project == "MinimalProject"
     assert config.mode == "audit"
     assert config.tasks == "all", "默认 tasks 应为 all"
-    assert config.port == 5000, "默认 port 应为 5000（FleetLaunchConfig.port 默认值）"
+    assert config.port == 3100, "默认 port 应为 3100（FleetLaunchConfig.port 默认值）"
     assert config.model == "auto", "默认 model 应为 auto"
 
 

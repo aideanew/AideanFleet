@@ -6,8 +6,25 @@
 
 from __future__ import annotations
 
+import socket
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+
+class _DrillServer(HTTPServer):
+    """演练专用：禁止地址复用双绑定。
+
+    Windows 上 HTTPServer 默认 allow_reuse_address=1（SO_REUSEADDR）允许在旧进程
+    仍监听时二次绑定同一端口——演练必须让"旧进程未死 → 新进程起不来"显式失败，
+    否则会出现 kill 后端口仍被幽灵进程应答的假象（F-12）。
+    """
+
+    allow_reuse_address = False
+
+    def server_bind(self) -> None:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 class _Health(BaseHTTPRequestHandler):
@@ -25,7 +42,7 @@ class _Health(BaseHTTPRequestHandler):
 
 def main() -> int:
     port = int(sys.argv[1])
-    server = HTTPServer(("127.0.0.1", port), _Health)
+    server = _DrillServer(("127.0.0.1", port), _Health)
     server.serve_forever()
     return 0
 

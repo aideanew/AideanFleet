@@ -75,3 +75,32 @@ def test_model_key_presence_check(toml_file, monkeypatch):
     assert cfg.models["agnes"].key_present() is False
     monkeypatch.setenv("AGNES_API_KEY", "x")
     assert cfg.models["agnes"].key_present() is True
+
+
+def test_save_roundtrip_and_secret_rejection(tmp_path, monkeypatch):
+    """TASK-302：save → load_config 回读一致；含 sk- 值时拒绝。"""
+    import pytest as _pytest
+    from fleet.core import fleet_toml as ft
+    from fleet.core.config import PlaintextSecretRejected
+
+    target = tmp_path / "fleet.toml"
+    cfg = ft.FleetConfig(path=None, allowed_roots=["E:/Demo"],
+                         models={"agnes": ft.ModelCfg(name="agnes", base_url="https://x/v1",
+                                                      model_id="agnes-1", api_key_env="AGNES_API_KEY",
+                                                      priority=5)},
+                         roles={"fe-1": ft.RoleCfg(name="fe-1", harness=["codex"], models=["agnes"])},
+                         scheduler="auto", lease_minutes=20, sources={})
+    written = ft.save(cfg, target)
+    assert written == target
+    reloaded = ft.load_config(target)
+    assert reloaded.allowed_roots == ["E:/Demo"]
+    assert reloaded.models["agnes"].model_id == "agnes-1"
+    assert reloaded.roles["fe-1"].harness == ["codex"]
+    assert reloaded.lease_minutes == 20
+
+    bad = ft.FleetConfig(path=None, models={"x": ft.ModelCfg(name="x", base_url="https://x/v1",
+                                                             model_id="sk-abc1234567890123456789xyz",  # nosec 测试夹具
+                                                             api_key_env="X", priority=1)},
+                         roles={}, scheduler="auto", lease_minutes=15, sources={})
+    with _pytest.raises(PlaintextSecretRejected):
+        ft.save(bad, tmp_path / "bad.toml")

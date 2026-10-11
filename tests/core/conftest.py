@@ -23,7 +23,7 @@ from fleet.manager import dag as dag_engine  # noqa: E402
 MINIMAL_ENV_EXAMPLE = """\
 # ===== [SECTION: basic] 基础信息 =====
 FLEET_PROJECT_NAME=AideanFleet
-FLEET_CONSOLE_PORT=5000
+FLEET_CONSOLE_PORT=3100
 FLEET_LOCK_TTL_MINUTES=60
 
 # ===== [SECTION: model_pool] 模型池 =====

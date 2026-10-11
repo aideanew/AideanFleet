@@ -28,6 +28,14 @@ output/
 # ===== 构建产物 =====
 build/
 dist/
+# 安装器构建产物（运行时 zip / wheelhouse / exe 输出）
+scripts/installer/windows/_runtimes/
+scripts/installer/windows/_wheelhouse/
+dist-installer/
+# 迁移打包副本（生成物，唯一源在 database/migrations）
+fleet/kernel/_migrations/
+# 规划包（外部交付物，按 U-01=B 只入库 packages/contracts 与 database/migrations）
+docs/AideanFleet-规划包*/
 dist-mock/
 node_modules/
 *.egg-info/

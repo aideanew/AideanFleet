@@ -25,6 +25,7 @@ from __future__ import annotations
 import os
 import tomllib
 from dataclasses import dataclass, field
+import re
 from pathlib import Path
 from typing import Any
 
@@ -163,3 +164,88 @@ def print_config_source(cfg: FleetConfig) -> str:
         for name, r in cfg.roles.items():
             lines.append(f"  {name}: harness={r.harness} models={r.models}")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# save（TASK-302）：按 FleetConfig 校验后原子写 fleet.toml（零依赖 TOML 序列化）
+# ---------------------------------------------------------------------------
+
+
+def _toml_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    return json_dumps(value)
+
+
+def json_dumps(value: Any) -> str:
+    import json as _json
+
+    return _json.dumps(value, ensure_ascii=False)
+
+
+def _reject_secret(value: str) -> None:
+    """拒绝形似明文密钥的值（复用旧链路 config 的密钥形态检测语义）。"""
+    import re
+
+    if re.search(r"sk-[A-Za-z0-9]{20,}", value):
+        from .config import PlaintextSecretRejected
+
+        raise PlaintextSecretRejected("疑似明文 API key（sk- 开头），只允许 ${VAR} 占位或环境变量名")
+    if re.search(r"-----BEGIN [A-Z ]*PRIVATE KEY-----", value):
+        from .config import PlaintextSecretRejected
+
+        raise PlaintextSecretRejected("疑似私钥内容，拒绝写入 fleet.toml")
+
+
+def save(cfg: FleetConfig, path: str | Path | None = None) -> Path:
+    """FleetConfig → fleet.toml（临时文件 + os.replace 原子写）。写后可 load_config 回读。"""
+    import os
+    import tempfile
+
+    target = Path(path) if path else (cfg.path or paths().root / CONFIG_NAME)
+    lines: list[str] = []
+
+    if cfg.allowed_roots:
+        lines.append("[workspace]")
+        lines.append(f"allowed_roots = {_toml_value(cfg.allowed_roots)}")
+        lines.append("")
+    if cfg.models:
+        for name in cfg.models:
+            m = cfg.models[name]
+            lines.append(f"[models.{name}]")
+            lines.append(f'base_url = "{m.base_url}"')
+            lines.append(f'model_id = "{m.model_id}"')
+            lines.append(f'api_key_env = "{m.api_key_env}"')
+            lines.append(f"priority = {m.priority}")
+            lines.append("")
+    if cfg.roles:
+        for name in cfg.roles:
+            r = cfg.roles[name]
+            lines.append(f"[roles.{name}]")
+            lines.append(f"harness = {_toml_value(r.harness)}")
+            lines.append(f"models = {_toml_value(r.models)}")
+            lines.append("")
+    lines.append("[runtime]")
+    lines.append(f'scheduler = "{cfg.scheduler}"')
+    lines.append(f"lease_minutes = {cfg.lease_minutes}")
+    lines.append("")
+
+    content = "\n".join(lines)
+    for line_value in re.findall(r'"([^"]*)"', content):
+        _reject_secret(line_value)
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=str(target.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(content)
+        os.replace(tmp_name, target)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+    return target

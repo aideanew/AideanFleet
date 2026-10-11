@@ -21,7 +21,7 @@ setup: ## 创建虚拟环境并安装依赖
 ##@ 开发
 
 .PHONY: run
-run: ## 启动控制台服务（端口 5000）
+run: ## 启动控制台服务（端口 3100）
 	$(VENV_PYTHON) -m fleet.console.server
 
 .PHONY: run-cli
@@ -31,6 +31,18 @@ run-cli: ## CLI 交互模式启动
 .PHONY: test
 test: ## 运行全部测试
 	$(VENV_PYTHON) -m pytest tests -q
+
+.PHONY: guard
+guard: ## 守门：契约一致 + 迁移同步 + 全量测试（CI 合并门）
+	$(VENV_PYTHON) scripts/contracts_gen.py --check
+	$(VENV_PYTHON) scripts/sync_migrations.py
+	$(VENV_PYTHON) scripts/sync_migrations.py --check
+	$(VENV_PYTHON) -m pytest tests -q
+
+.PHONY: installer
+installer: ## 构建 Windows 安装器（需 Inno Setup iscc）
+	$(VENV_PYTHON) scripts/installer/windows/fetch_runtimes.py
+	iscc scripts/installer/windows/AideanFleet.iss
 
 .PHONY: test-e2e
 test-e2e: ## 运行端到端测试

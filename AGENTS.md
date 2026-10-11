@@ -22,7 +22,7 @@
 
 ```bash
 make setup            # 创建 .venv + 安装依赖
-make run              # 控制台 → http://127.0.0.1:5000
+make run              # 控制台 → http://127.0.0.1:3100
 make test             # 单元测试（pytest，含 timeout 守门）
 make test-all         # 全部测试
 make frontend-build   # 构建前端 → fleet/console/dist（产物入库）

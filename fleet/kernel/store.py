@@ -108,9 +108,12 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
 
 
 def init_db(db_path: str | Path) -> None:
-    """建表（幂等）。"""
+    """建表 + 应用增量迁移（幂等）。"""
     conn = connect(db_path)
     conn.executescript(_SCHEMA)
+    from . import migrate
+
+    migrate.run(conn)
 
 
 def close() -> None:

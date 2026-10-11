@@ -1,6 +1,6 @@
 """这是什么：控制台进程守护（REL-01 §9.2）。独立进程运行，health 端点探活，崩溃自动拉起。
 怎么用：
-    python -m fleet.rel.watchdog --port 5000            # 前台常驻（由 launch_core 以子进程拉起）
+    python -m fleet.rel.watchdog --port 3100            # 前台常驻（由 launch_core 以子进程拉起）
 语义：
   · 每 interval 秒探活 GET http://host:port/api/health（HTTP 200 即活）；连续 max_failures 次失败判死。
   · 判死后以相同参数重启（restart_cmd），写事件 rel:restart（含重启计数/新旧 pid）。
@@ -17,6 +17,8 @@ import sys
 import time
 import urllib.error
 import urllib.request
+
+from fleet.core.ports import DEFAULT_CONSOLE_PORT
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -34,7 +36,7 @@ DEFAULT_MAX_RESTARTS = 3
 class WatchdogConfig:
     """守护参数；probe/spawner/sleep/now 可注入以便离线测试。"""
 
-    port: int = 5000
+    port: int = DEFAULT_CONSOLE_PORT
     host: str = "127.0.0.1"
     interval: float = DEFAULT_INTERVAL
     max_failures: int = DEFAULT_MAX_FAILURES
@@ -94,6 +96,19 @@ class Watchdog:
 
     def restart(self) -> Any:
         old_pid = getattr(self.child, "pid", None)
+        # F-12 修复：先把旧子进程真正收掉再拉新——旧进程未死时新进程会因端口占用
+        # 立刻失败（Linux Errno 98），而 Windows 的 SO_REUSEADDR 语义下甚至会出现
+        # 双进程同时监听同一端口（"kill 后端口仍存活"）。
+        if self.child is not None:
+            try:
+                self.child.terminate()
+                self.child.wait(timeout=5)
+            except Exception:
+                try:
+                    self.child.kill()
+                    self.child.wait(timeout=5)
+                except Exception:
+                    pass
         child = self.spawn_child()
         self.restarts += 1
         self._restart_times.append(self._now())
@@ -178,7 +193,7 @@ def spawn_for_console(port: int, host: str = "127.0.0.1") -> subprocess.Popen:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="AideanFleet 控制台 watchdog（REL-01）")
-    parser.add_argument("--port", type=int, default=5000)
+    parser.add_argument("--port", type=int, default=DEFAULT_CONSOLE_PORT)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--interval", type=float, default=DEFAULT_INTERVAL)
     parser.add_argument("--max-failures", type=int, default=DEFAULT_MAX_FAILURES)

@@ -23,7 +23,9 @@ from pathlib import Path
 
 from fleet.core.paths import paths
 
-DEFAULT_PORT = 5000
+from fleet.core.ports import DEFAULT_CONSOLE_PORT
+
+DEFAULT_PORT = DEFAULT_CONSOLE_PORT
 
 
 def _configure_stdio() -> None:
@@ -113,6 +115,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
     print("== Harness Profiles 探测 ==")
     failures = 0
+    missing_components: list[str] = []
     for name in available_profiles():
         try:
             profile = load_profile(name)
@@ -122,17 +125,20 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             continue
         ok, detail = detect(profile)
         if not ok:
-            print(f"  ✗ {name}: 未安装/不可用（{detail}）")
+            print(f"  ✗ {name}: 未安装/不可用（{detail}）→ 修复命令: fleet setup install {name}")
+            missing_components.append(name)
             failures += 1
             continue
         auth_ok, auth_detail = auth_check(profile)
         if auth_ok:
             print(f"  ✓ {name}: 已安装且已登录/可用")
         else:
-            print(f"  ⚠ {name}: 已安装但未登录/不可用（{auth_detail}）")
+            print(f"  ⚠ {name}: 已安装但未登录/不可用（{auth_detail}）→ 修复: 打开控制台 /setup 第 3 步点『去登录』")
             failures += 1
     if failures:
-        print(f"\n{failures} 个 profile 不可用——对应角色的任务会自动降级到链中下一个执行体。")
+        if missing_components:
+            print(f"\n一键修复: fleet setup install {' '.join(missing_components)}")
+        print(f"{failures} 个 profile 不可用——对应角色的任务会自动降级到链中下一个执行体。")
         return 1
     print("\n全部 profile 可用。")
     return 0
@@ -153,15 +159,23 @@ def _port_open(port: int) -> bool:
         return s.connect_ex(("127.0.0.1", port)) == 0
 
 
+def _loopback_opener():
+    """F-07 修复：127.0.0.1 探活绝不走系统代理（HTTP(S)_PROXY 会把回环请求交给代理）。"""
+    import urllib.request
+
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def _wait_healthy(port: int, timeout_s: float = 20.0, interval_s: float = 0.5) -> bool:
     """健康检查轮询：每 0.5s、最长 20s（U1 修复的 CLI 侧同款语义）。"""
     import urllib.request
 
+    opener = _loopback_opener()
     deadline = time.monotonic() + timeout_s
     url = f"http://127.0.0.1:{port}/api/health"
     while time.monotonic() < deadline:
         try:
-            with urllib.request.urlopen(url, timeout=2) as resp:
+            with opener.open(url, timeout=2) as resp:
                 if resp.status == 200:
                     return True
         except Exception:
@@ -184,11 +198,27 @@ def cmd_up(args: argparse.Namespace) -> int:
             cwd=str(paths().root), env={**os.environ, "FLEET_CONSOLE_PORT": str(port)},
             stdout=api_log, stderr=subprocess.STDOUT, creationflags=creationflags,
         )
-    if not _wait_healthy(port):
+    ready = _wait_healthy(port)
+    if not ready:
         print(f"✗ 控制台在 20s 内未就绪；最后日志：")
         _print_log_tail(_log_file("api"), 50)
         return 1
     print(f"✓ api 就绪: http://127.0.0.1:{port}/")
+
+    # TASK-204：--open 自动开浏览器；ready 判定来自 fleet.setup.status
+    if args.open:
+        target = "/tasks"
+        try:
+            from fleet.setup import core as setup_core
+
+            target = "/tasks" if setup_core.status()["ready"] else "/setup"
+        except Exception:
+            target = "/setup"
+        url = f"http://127.0.0.1:{port}{target}"
+        import webbrowser
+
+        webbrowser.open(url)
+        print(f"✓ 已打开浏览器: {url}")
 
     if not args.no_worker:
         worker_log = open(_log_file("worker"), "ab")
@@ -198,7 +228,7 @@ def cmd_up(args: argparse.Namespace) -> int:
             cwd=str(paths().root),
             stdout=worker_log, stderr=subprocess.STDOUT, creationflags=creationflags,
         )
-        print("✓ worker 已启动（单写者内核：fleet.db）")
+        print("✓ worker 已启动（单写者内核：kernel.db）")
     print("\n完成。Ctrl+C 退出本进程不会停掉后台服务；fleet run 可进入旧交互流程。")
     try:
         while True:
@@ -229,16 +259,23 @@ def cmd_worker(args: argparse.Namespace) -> int:
     kernel = Kernel(paths().data_dir / "kernel.db")
     worker = f"worker-{os.getpid()}"
 
+    # F-01/F-06 修复（ADR-004 选项 C）：planner_client 与 model_for 在 fleet/cli 组装注入
+    from fleet.cli import clients
+
+    planner_client = clients.make_planner_client("planner")
+    model_for = clients.model_for
+
     def _on_round(outcome: dict) -> None:
         detail = str(outcome.get("detail") or outcome.get("result") or "")
         print(f"[{worker}] {outcome.get('action')} {outcome.get('todo') or ''} {detail[:160]}")
 
     if args.loop:
-        run_loop(kernel, worker=worker, on_round=_on_round,
-                 workspace_root=args.workspace or "")
+        run_loop(kernel, worker=worker, planner_client=planner_client, model_for=model_for,
+                 on_round=_on_round, workspace_root=args.workspace or "")
         return 0
     from fleet.runner import run_once
-    outcome = run_once(kernel, worker=worker, workspace_root=args.workspace or "")
+    outcome = run_once(kernel, worker=worker, planner_client=planner_client,
+                       model_for=model_for, workspace_root=args.workspace or "")
     print(json.dumps(outcome, ensure_ascii=False, default=str)[:2000])
     if outcome.get("action") == "writeback":
         kernel.transition(outcome["todo"], outcome["result"])
@@ -261,29 +298,82 @@ def cmd_next(args: argparse.Namespace) -> int:
         print(json.dumps({"todo": None, "reason": "no_runnable_todo"}, ensure_ascii=False))
         return 0
     todo = claimables[0]
-    kernel.claim(todo["id"], worker=args.agent or "host", harness="host")
+    agent = args.agent or "host"
+    kernel.claim(todo["id"], worker=agent, harness="host")
+    kernel.mark_running(todo["id"], agent)  # F-03 修复：host 写回 done 需要 verifying 态
     packet = kernel.packet_for(todo["id"])
     print(json.dumps(packet, ensure_ascii=False, indent=2))
     return 0
 
 
 def cmd_writeback(args: argparse.Namespace) -> int:
+    """宿主内写回（TASK-401）：done 前由 Fleet 自己跑机器门（F-04 修复）。
+
+    B4：--agent 必须与 todo.claimed_by 一致，否则拒绝且状态不变。
+    语义：done → mark_verifying → run_verify(verify, workspace) → 通过=done / 不通过=successor。
+    """
     from fleet.kernel import Kernel
     from fleet.kernel.state import TurnResult
+    from fleet.runner import gates
 
     kernel = Kernel(paths().data_dir / "kernel.db")
     todo = kernel.get_todo(args.todo)
+    agent = args.agent or "host"
+    if todo["claimed_by"] and todo["claimed_by"] != agent:
+        print(json.dumps({
+            "ok": False,
+            "error": f"todo 被认领人 {todo['claimed_by']} 持有，写入方 {agent} 不一致（identity B4）",
+            "reason": "HOLD_MISMATCH",
+        }, ensure_ascii=False))
+        return 3
+
     evidence = args.evidence or ""
     if evidence and Path(evidence).is_file():
         evidence = Path(evidence).read_text(encoding="utf-8", errors="replace")[:20000]
-    result = TurnResult(
-        verdict=args.verdict,
-        note=args.note or "",
-        evidence_path=evidence,
-        successor={"title": args.successor_title or f"{todo['title']}（返工）"} if args.verdict == "successor" else {},
-    )
+
+    if args.verdict == "done":
+        if todo["status"] == "claimed":
+            kernel.mark_running(args.todo, agent)
+        if todo["status"] in ("claimed", "running"):
+            kernel.mark_verifying(args.todo, agent)
+        workspace = todo["workspace"]
+        report = gates.run_verify(todo["verify"], workspace) if todo["verify"] else None
+        evidence_dir = Path(paths().data_dir) / "evidence" / args.todo
+        if report is not None:
+            gates.save_evidence(evidence_dir, report, "")
+        if report is not None and not report.ok:
+            summary = report.summary()
+            (evidence_dir / "writeback_note.txt").write_text(
+                "host 写回被机器门拦截：\n" + summary + "\n\nhost note: " + (args.note or ""),
+                encoding="utf-8")
+            result = TurnResult(
+                verdict="successor",
+                note="host 写回 done 被机器门拦截，转返工：\n" + summary,
+                successor={
+                    "title": todo["title"], "role": todo["role"],
+                    "allowed_files": todo["allowed_files"], "verify": todo["verify"],
+                    "done_when": todo["done_when"], "workspace": workspace,
+                    "packet": (todo["packet"] or "")
+                              + "\n\n【上一轮机器门结果】机器门未通过，按以下失败项修复：\n" + summary,
+                },
+            )
+        else:
+            result = TurnResult(
+                verdict="done",
+                note=args.note or "",
+                evidence_path=str(evidence_dir) if report is not None else (evidence or ""),
+            )
+    else:
+        result = TurnResult(
+            verdict=args.verdict,
+            note=args.note or "",
+            evidence_path=evidence,
+            successor={"title": args.successor_title or f"{todo['title']}（返工）"} if args.verdict == "successor" else {},
+        )
+
     updated = kernel.transition(args.todo, result)
-    print(json.dumps({"todo": updated["id"], "status": updated["status"]}, ensure_ascii=False))
+    print(json.dumps({"ok": True, "todo": updated["id"], "status": updated["status"],
+                      "verdict": args.verdict}, ensure_ascii=False))
     return 0
 
 
@@ -304,9 +394,9 @@ description: 通过 AideanFleet kernel 认领任务、执行并写回（宿主�
 2. 运行 `python -m fleet.cli.main next --agent claude --json` 认领一个 todo；
    返回 `{"todo": null}` 说明当前无可认领任务，直接如实告知用户。
 3. 按 packet 执行任务：只改 allowed_files 白名单内文件；workspace 是 packet.todo.workspace。
-4. 真实执行 packet.todo.verify 里的验收命令；通过后运行：
-   `python -m fleet.cli.main writeback --todo <id> --verdict done --note "<改动摘要与命令输出证据>"`
-   未通过则 `--verdict successor --note "<失败原因>"`；被阻塞 `--verdict blocked`。
+4. 完成任务后写回（机器门由 writeback 自动执行，你不必伪造通过）：
+   `python -m fleet.cli.main writeback --todo <id> --agent claude --verdict done --note "<改动摘要>"`
+   gate 未通过会自动转返工 successor（你重新 next 认领即可修复）；被阻塞 `--verdict blocked`。
 5. 需要继续跑后续任务时，回到第 2 步（平级会话通过 claim 互斥，不会撞车）。
 """
 
@@ -349,6 +439,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_up = sub.add_parser("up", help="拉起 api + worker")
     p_up.add_argument("--port", type=int, default=DEFAULT_PORT)
+    p_up.add_argument("--open", action="store_true", help="就绪后自动打开浏览器（未就绪进 /setup）")
     p_up.add_argument("--no-worker", action="store_true", help="只起控制台")
     p_up.set_defaults(func=cmd_up)
 
@@ -366,6 +457,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_wb.add_argument("--todo", required=True)
     p_wb.add_argument("--verdict", required=True,
                       choices=["done", "successor", "blocked", "needs_user"])
+    p_wb.add_argument("--agent", default="host", help="写入方身份（必须与认领人一致，B4）")
     p_wb.add_argument("--note", default="")
     p_wb.add_argument("--evidence", default="", help="证据文件路径或文本")
     p_wb.add_argument("--successor-title", default="")
@@ -376,10 +468,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_skill.add_argument("--host", default="", help="claude|codex|opencode（缺省全装）")
     p_skill.set_defaults(func=cmd_skills)
 
+    p_setup = sub.add_parser("setup", help="组件安装与状态（= python -m fleet.setup）")
+    p_setup.add_argument("setup_args", nargs=argparse.REMAINDER)
+    p_setup.set_defaults(func=_run_fleet_setup)
+
     p_run = sub.add_parser("run", help="旧交互式启动（兼容保留）")
     p_run.set_defaults(func=lambda args: _legacy_run())
 
     return parser
+
+
+def _run_fleet_setup(args: argparse.Namespace) -> int:
+    """fleet setup → python -m fleet.setup（输出保持一致，TASK-204 验收）。"""
+    from fleet.setup import __main__ as setup_main
+
+    return setup_main.main(list(args.setup_args)) or 0
 
 
 def _legacy_run() -> int:

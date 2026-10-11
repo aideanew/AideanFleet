@@ -16,9 +16,11 @@ $Venv = ".venv"
 function Show-Help {
   Write-Host "AideanFleet make.ps1 - available targets:"
   Write-Host "  setup             create venv and install deps"
-  Write-Host "  run               start console server (port 5000)"
+  Write-Host "  run               start console server (port 3100)"
   Write-Host "  run-cli           start CLI interactive mode"
   Write-Host "  test              run all unit tests"
+  Write-Host "  guard             contracts check + migrations sync + all tests (CI gate)"
+  Write-Host "  installer         build Windows installer (requires Inno Setup iscc)"
   Write-Host "  test-e2e          run end-to-end tests (Playwright)"
   Write-Host "  test-all          run all tests (incl. e2e)"
   Write-Host "  lint              run pyflakes"
@@ -50,6 +52,22 @@ switch ($Target) {
     $env:PYTHONIOENCODING = "utf-8"
     $env:PYTHONUTF8 = "1"
     & $Python -m pytest tests -q
+  }
+  "guard" {
+    $env:PYTHONIOENCODING = "utf-8"
+    $env:PYTHONUTF8 = "1"
+    & $Python scripts/contracts_gen.py --check
+    if ($LASTEXITCODE -ne 0) { throw "contracts_gen --check failed" }
+    & $Python scripts/sync_migrations.py --check
+    if ($LASTEXITCODE -ne 0) { throw "sync_migrations --check failed" }
+    & $Python -m pytest tests -q
+    if ($LASTEXITCODE -ne 0) { throw "pytest failed" }
+  }
+  "installer" {
+    & $Python scripts/installer/windows/fetch_runtimes.py
+    if ($LASTEXITCODE -ne 0) { throw "fetch_runtimes failed" }
+    & iscc scripts\installer\windows\AideanFleet.iss
+    if ($LASTEXITCODE -ne 0) { throw "iscc failed" }
   }
   "test-e2e" {
     Push-Location tests-e2e

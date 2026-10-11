@@ -35,11 +35,13 @@ def isolated_launch(monkeypatch, tmp_path):
 def test_health_contract(monkeypatch, payload, healthy):
     import urllib.request
 
-    def response(req, timeout):
-        data = payload if "/api/health" in req.full_url else {"name": "Hermes-Manager"}
-        return io.BytesIO(json.dumps(data).encode())
+    class FakeOpener:
+        def open(self, req, timeout=None):
+            data = payload if "/api/health" in req.full_url else {"name": "Hermes-Manager"}
+            return io.BytesIO(json.dumps(data).encode())
 
-    monkeypatch.setattr(urllib.request, "urlopen", response)
+    # _health_check 自建 loopback opener（TASK-106）：在 build_opener 层打桩
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *handlers: FakeOpener())
     assert lc._health_check(19997, 19998) == {"console": healthy, "manager": True}
 
 
@@ -111,3 +113,63 @@ def test_child_env_forces_utf8_output(monkeypatch):
     env = lc._child_env({"FLEET_CONSOLE_PORT": "19997"})
     assert env["PYTHONIOENCODING"] == "utf-8"
     assert env["FLEET_CONSOLE_PORT"] == "19997"
+
+
+def test_ensure_env_file_migrates_port_5000_to_3100(tmp_path, monkeypatch, capsys):
+    """ADR-005：存量 .env 中恰为 5000 的 FLEET_CONSOLE_PORT 自动迁移为 3100；其他值不动。"""
+    from fleet.core import paths as paths_mod
+
+    root = tmp_path / "fleet-root"
+    root.mkdir()
+    (root / ".env.example").write_text("FLEET_CONSOLE_PORT=3100\n", encoding="utf-8")
+    env_file = root / ".env"
+    env_file.write_text(
+        "FLEET_CONSOLE_PORT=5000\nFLEET_SCHEDULER=0\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("FLEET_ROOT", str(root))
+    monkeypatch.setenv("FLEET_DATA_DIR", str(root / "data"))
+    paths_mod._CACHE = None  # paths() 每次读 env，无需缓存失效；保险起见不依赖
+
+    assert lc._ensure_env_file() is True
+    text = env_file.read_text(encoding="utf-8")
+    assert "FLEET_CONSOLE_PORT=3100" in text
+    assert "FLEET_CONSOLE_PORT=5000" not in text
+    assert "FLEET_SCHEDULER=0" in text  # 显式 0 不被 A1 迁移覆盖
+
+    # 5050 等自定义值不被改写
+    env_file.write_text("FLEET_CONSOLE_PORT=5050\n", encoding="utf-8")
+    assert lc._ensure_env_file() is True
+    assert "FLEET_CONSOLE_PORT=5050" in env_file.read_text(encoding="utf-8")
+
+
+def test_health_check_bypasses_proxy(monkeypatch):
+    """TASK-106（F-07）：HTTP_PROXY 指向不可达地址时，回环探活仍成功。"""
+    import json as json_mod
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9")
+
+    class _Health(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            body = json_mod.dumps(
+                {"version": "0.3.0", "db": True, "events": True, "config": True}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), _Health)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        health = lc._health_check(port, port)
+        assert health["console"] is True, "回环探活被代理劫持（F-07 回归）"
+    finally:
+        server.shutdown()

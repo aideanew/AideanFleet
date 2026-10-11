@@ -182,7 +182,7 @@ def test_spawn_for_console_builds_detached_process(monkeypatch):
         return FakeChild()
 
     monkeypatch.setattr("fleet.rel.watchdog.subprocess.Popen", fake_popen)
-    child = spawn_for_console(5000)
+    child = spawn_for_console(3100)
     assert child.pid == 424242
     assert captured["cmd"][:3] == [sys.executable, "-m", "fleet.rel.watchdog"]
-    assert "--port" in captured["cmd"] and "5000" in captured["cmd"]
+    assert "--port" in captured["cmd"] and "3100" in captured["cmd"]

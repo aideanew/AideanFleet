@@ -1,0 +1,14 @@
+{
+  "$id": "schemas/plan-diff.json", "title": "PlanDiff",
+  "description": "steer/plan 产物：待用户确认的计划变更（S6）",
+  "type": "object", "additionalProperties": false,
+  "required": ["source_todo","add","cancel","modify"],
+  "properties": {
+    "source_todo": {"type": "string"},
+    "add": {"type": "array", "items": {"$ref": "plan.json#/$defs/PlanTodo"}},
+    "cancel": {"type": "array", "items": {"type": "string", "description": "被取消的 todo id，执行时转 superseded"}},
+    "modify": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["todo_id","fields"],
+      "properties": {"todo_id": {"type": "string"}, "fields": {"type": "object", "additionalProperties": false,
+        "properties": {"title": {"type": "string"}, "allowed_files": {"type": "array", "items": {"type": "string"}}, "verify": {"type": "array", "items": {"type": "string"}}, "done_when": {"type": "string"}}}}}}
+  }
+}

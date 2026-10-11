@@ -34,6 +34,12 @@ const router = createRouter({
     { path: '/approvals', component: () => import('@/pages/ApprovalCenterPage.vue') },
     { path: '/cost', component: () => import('@/pages/CostPanelPage.vue') },
     { path: '/history', component: () => import('@/pages/HistoryPage.vue') },
+    // Kernel 任务页（TASK-104，S1）：追加在治理页之后，不替换首页（U-06 默认不动）
+    { path: '/tasks/new', component: () => import('@/pages/TasksNewPage.vue') },
+    { path: '/tasks', component: () => import('@/pages/TasksBoardPage.vue') },
+    { path: '/tasks/:todo_id/diff', component: () => import('@/pages/PlanDiffPage.vue') },
+    // 首次运行向导（TASK-205/S2 + TASK-303/S3）：后端对 /api/setup/* 免会话仅回环
+    { path: '/setup', component: () => import('@/pages/SetupPage.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/overview' },
   ],
 })

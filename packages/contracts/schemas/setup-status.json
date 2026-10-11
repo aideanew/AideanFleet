@@ -1,0 +1,46 @@
+{
+  "$id": "schemas/setup-status.json", "title": "SetupStatus",
+  "description": "零基础安装/首次配置的唯一状态视图（S2/S3）",
+  "type": "object", "additionalProperties": false,
+  "required": ["platform","ready","components","models","harness_auth"],
+  "properties": {
+    "platform": {"enum": ["windows","linux","macos"]},
+    "ready": {"type": "boolean", "description": "true ⟺ 至少 1 个模型 key 可用 且 至少 1 个执行体 installed+authed"},
+    "components": {"type": "array", "items": {"$ref": "#/$defs/Component"}},
+    "models": {"type": "array", "items": {"$ref": "#/$defs/ModelEntry"}},
+    "harness_auth": {"type": "array", "items": {"$ref": "#/$defs/HarnessAuth"}}
+  },
+  "$defs": {
+    "Component": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name","kind","state","version","min_version","source","detail"],
+      "properties": {
+        "name": {"enum": ["python","node","npm","git","claude","codex","opencode","gemini","cline","grok"]},
+        "kind": {"enum": ["runtime","cli"]},
+        "state": {"enum": ["missing","installing","installed","outdated","failed"]},
+        "version": {"type": "string"}, "min_version": {"type": "string"},
+        "source": {"enum": ["system","managed","none"], "description": "managed = 安装器内置于 %LOCALAPPDATA%/Programs/AideanFleet 的私有副本"},
+        "detail": {"type": "string", "maxLength": 500}
+      }
+    },
+    "ModelEntry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name","base_url","model_id","api_key_env","key_present"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"},
+        "base_url": {"type": "string", "pattern": "^https?://"},
+        "model_id": {"type": "string", "minLength": 1},
+        "api_key_env": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$"},
+        "key_present": {"type": "boolean", "description": "只报告是否存在，永不回传值"}
+      }
+    },
+    "HarnessAuth": {
+      "type": "object", "additionalProperties": false,
+      "required": ["harness","installed","authed","detail"],
+      "properties": {
+        "harness": {"type": "string"}, "installed": {"type": "boolean"}, "authed": {"type": "boolean"},
+        "detail": {"type": "string", "maxLength": 500}
+      }
+    }
+  }
+}

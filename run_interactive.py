@@ -35,7 +35,7 @@ prompts = [
 inputs = [
     "Test09161119",
     r"E:\Demo\Test09161119",
-    "5000",
+    "3100",
     "run"
 ]
 

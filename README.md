@@ -25,11 +25,11 @@ Harness Profiles（claude/codex/opencode 声明式 YAML）+ Model Router（OpenA
 pip install -e .
 fleet init        # 向导：扫描已装 CLI、探测模型 key、生成 fleet.toml
 fleet doctor      # 执行体/配置体检（--config 查看生效值与来源）
-fleet up          # 拉起 api(控制台 :5000) + worker，日志在 data/logs/
+fleet up          # 拉起 api(控制台 :3100) + worker，日志在 data/logs/
 fleet run         # 旧交互式启动（兼容保留）
 ```
 
-浏览器打开 `http://127.0.0.1:5000`。宿主内驱动（推荐）：`fleet skills install` 后在 Claude Code / Codex / OpenCode 里用 `/fleet <任务>`。
+浏览器打开 `http://127.0.0.1:3100`。宿主内驱动（推荐）：`fleet skills install` 后在 Claude Code / Codex / OpenCode 里用 `/fleet <任务>`。
 
 ## 目录
 

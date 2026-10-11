@@ -3,14 +3,14 @@ import { defineConfig, devices } from '@playwright/test'
 /**
  * UI-03R e2e 配置
  *
- * baseURL 支持环境变量切换，便于 5000（正式）与 5050（当前验证端口）双向复用：
- *   E2E_BASE_URL=http://127.0.0.1:5000 npx playwright test     # 主题1 完成后
- *   npx playwright test                                        # 默认 5050
+ * baseURL 支持环境变量切换，默认 3100（ADR-005）：
+ *   E2E_BASE_URL=http://127.0.0.1:3100 npx playwright test
+ *   npx playwright test                                        # 默认 3100
  *
  * 说明：控制台为 SPA（history 路由），server.py 已提供 /{path} → index.html 兜底，
  * 因此可对 /overview、/models 等深链直接 goto。
  */
-const BASE_URL = process.env.E2E_BASE_URL || 'http://127.0.0.1:5050'
+const BASE_URL = process.env.E2E_BASE_URL || 'http://127.0.0.1:3100'
 const PROJECT = process.env.E2E_PROJECT || 'AideanFleet'
 /** 每轮独立产物目录：避免 Playwright 启动时清空旧目录而触发本机批量删除护栏 */
 const RUN_ID = process.env.E2E_RUN_ID || new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)
