@@ -75,7 +75,10 @@ def test_migrations_packaged_copy_matches_source():
     """Guard：fleet/kernel/_migrations 打包副本与 database/migrations 唯一源一致。"""
     import subprocess
 
-    root = migrate.migrations_dir().parents[2]
+    from pathlib import Path as _Path
+
+    # 审计修复：原写法 migrations_dir().parents[2] 指到仓库上一级，守门永远 skip
+    root = _Path(migrate.__file__).resolve().parents[2]
     source = sorted(p.name for p in (root / "database" / "migrations").glob("*.sql"))
     packaged_dir = root / "fleet" / "kernel" / "_migrations"
     if not packaged_dir.exists():
