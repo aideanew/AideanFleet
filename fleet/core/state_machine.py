@@ -1,6 +1,6 @@
 """这是什么：任务状态机。定义 10 个状态、合法迁移表，以及"非法迁移必须抛异常且不落库"的闸门。
 怎么用：from fleet.core import state_machine as sm;  sm.assert_transition("DRAFT", "ASSIGNED")
-口径来源：docs/契约/任务状态机.md（已冻结）；改这里必须同步改契约文档与 tests/test_state_machine.py。
+口径来源：docs/契约.md（已冻结）；改这里必须同步改契约文档与 tests/test_state_machine.py。
 注意：本模块是纯函数，不碰数据库、不写事件；持久化一律由 db.transition_and_log 负责。
 """
 
@@ -36,7 +36,7 @@ VERDICT_TO_STATE: dict[str, str] = {
     "BLOCKED": "BLOCKED",
 }
 
-#: review_status 列的取值（见 docs/契约/任务进度表字段.md §4）
+#: review_status 列的取值（见 docs/契约.md §4）
 REVIEW_STATUSES: tuple[str, ...] = ("PENDING", "REVIEWING", "PASS", "PARTIAL", "REWORK", "BLOCKED")
 
 #: 合法迁移表：from -> {to, ...}（契约 §2 逐条对应）

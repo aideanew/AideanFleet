@@ -124,7 +124,7 @@ def test_new_task_prompt_contains_memory_and_pass_event(fleet_env, project):
     try:
         entry = memory.record_decision("P-001", title="基线决策", summary="只改 allowed_files 内的文件。")
         pack = dispatcher.TaskPack(
-            id="T-D5", title="新任务", detail="做一点事", verify_cmd='python -c "print(1)"',
+            id="T-D5", title="新任务", detail="做一点事", verify_cmd='"{python}" -c "print(1)"',
             assignee="worker-a", reviewer="reviewer-1", project_id="P-001",
             memory_refs=[entry["id"]],
         )

@@ -34,7 +34,7 @@ if _SECRETS_FILE.exists():
             os.environ.setdefault(_k.strip(), _v.strip())
 
 # ---------------------------------------------------------------------------
-# 常量：七段（字段名冻结，见 docs/契约/控制台API.md §5）
+# 常量：七段（字段名冻结，见 docs/契约.md §5）
 # ---------------------------------------------------------------------------
 
 SECTIONS: tuple[str, ...] = ("basic", "model_pool", "roles", "executors", "email", "notify", "request", "settings")
@@ -306,7 +306,7 @@ def _iso_from_epoch(epoch: float) -> str:
 
 
 def load(section: str) -> dict[str, Any]:
-    """读取某一段，返回结构化字典（字段口径见 docs/契约/控制台API.md §5）。"""
+    """读取某一段，返回结构化字典（字段口径见 docs/契约.md §5）。"""
     section = str(section or "").strip().lower()
     if section not in SECTIONS:
         raise UnknownSection(f"未知配置段：{section}；合法段：{', '.join(SECTIONS)}")

@@ -320,7 +320,7 @@ async def _event_pump() -> None:
 # ---------------------------------------------------------------------------
 
 _EXEMPT_PATHS = {"/api/health", "/api/session", "/api/projects/names", "/api/launch-resolve", "/api/launch-event"}
-# launch-event 豁免会话：契约 docs/契约/控制台API.md §4 与 派工3 T5/T6 要求启动器（Hermes/CLI）
+# launch-event 豁免会话：契约 docs/契约.md §4 与 派工3 T5/T6 要求启动器（Hermes/CLI）
 # 不带 token 直接 POST；仅监听 127.0.0.1，事件写入前仍过 events.scrub 脱敏。
 # projects/names 豁免：锁屏候选列表（只含 id/name，无敏感字段）。
 
@@ -910,6 +910,53 @@ async def api_config_post(request: Request, section: str):
         return JSONResponse({"ok": False, "error": f"配置保存失败：{exc}"}, status_code=500)
     broadcast({"type": "config_changed", "section": key, "mtime": result.get("mtime")})
     return {"ok": True, "section": key, **result}
+
+
+# ---------------------------------------------------------------------------
+# Kernel 投影（P1：看板只读 + typed 动作；数据源为单写者内核 fleet.db）
+# ---------------------------------------------------------------------------
+
+
+def _kernel() -> "Any":
+    from fleet.kernel import Kernel
+
+    return Kernel(paths().data_dir / "kernel.db")
+
+
+@app.get("/api/kernel/attention")
+def api_kernel_attention():
+    """首屏注意力队列：待决策 / 运行中 / 阻塞 / 刚完成（LoopX 投影语义）。"""
+    return {"ok": True, **_kernel().attention()}
+
+
+@app.get("/api/kernel/todos")
+def api_kernel_todos(goal_id: str | None = None, status: str | None = None):
+    todos = _kernel().todos(goal_id=goal_id, status=status)
+    return {"ok": True, "todos": todos, "total": len(todos)}
+
+
+@app.get("/api/kernel/events")
+def api_kernel_events(limit: int = 100):
+    from fleet.kernel import store
+
+    kernel = _kernel()
+    pending = kernel.pending_events(limit=min(max(limit, 1), 500))
+    conn = store.connect(kernel.db_path)
+    recent = [dict(r) for r in conn.execute(
+        "SELECT seq, ts, kind, todo_id, goal_id, payload FROM events ORDER BY seq DESC LIMIT ?",
+        (min(max(limit, 1), 500),))]
+    return {"ok": True, "pending": len(pending), "events": recent}
+
+
+@app.post("/api/kernel/todos/{todo_id}/reopen")
+def api_kernel_reopen(todo_id: str):
+    """typed 动作：人工解除 blocked / needs_user → open。"""
+    try:
+        todo = _kernel().reopen(todo_id, actor="console")
+    except Exception as exc:
+        return JSONResponse({"ok": False, "reason": str(exc)}, status_code=409)
+    broadcast({"type": "task_update", "taskId": todo_id, "status": todo["status"]})
+    return {"ok": True, "todo": {"id": todo["id"], "status": todo["status"]}}
 
 
 # ---------------------------------------------------------------------------

@@ -32,7 +32,7 @@ class FleetPaths:
         """真实配置：首次运行由 .env.example 原样复制而来。"""
         return self.root / ".env"
 
-    # ---- 状态与事件（初始设计/d7.md：SQLite 存状态、JSONL 存事件、目录存证据） ----
+    # ---- 状态与事件（docs/架构.md：SQLite 存状态、JSONL 存事件、目录存证据） ----
     @property
     def db_file(self) -> Path:
         return self.data_dir / "fleet.db"

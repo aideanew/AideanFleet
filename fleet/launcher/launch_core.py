@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -75,6 +76,8 @@ def _get_creationflags() -> int:
 
 def _probe_versions() -> dict[str, str]:
     """探测Python和Hermes版本，返回版本信息"""
+    from fleet.executors.base import resolve_cli
+
     versions = {}
 
     # Python
@@ -89,10 +92,10 @@ def _probe_versions() -> dict[str, str]:
     except Exception as e:
         versions["python"] = f"ERROR: {e}"
 
-    # Hermes
+    # Hermes：必须走 resolve_cli()，Windows 下裸名解析不到 npm 的 .cmd shim
     try:
         result = subprocess.run(
-            ["hermes", "--version"],
+            [resolve_cli("hermes"), "--version"],
             capture_output=True,
             text=True,
             creationflags=_get_creationflags(),
@@ -108,6 +111,15 @@ def _ensure_env_file() -> bool:
     """确保 .env 文件存在（从 .env.example 复制）"""
     p = paths()
     if p.env_file.exists():
+        # A1 迁移：老安装的 .env 里没有 FLEET_SCHEDULER 时补一行默认开（显式设 0 的不受影响）。
+        try:
+            text = p.env_file.read_text(encoding="utf-8")
+            if not any(line.strip().startswith("FLEET_SCHEDULER=") for line in text.splitlines()):
+                with open(p.env_file, "a", encoding="utf-8") as fh:
+                    fh.write("\n# A1 迁移：常驻调度默认开启（显式设 0 可关闭）\nFLEET_SCHEDULER=1\n")
+                print("  ✓ 已在 .env 补充 FLEET_SCHEDULER=1（常驻调度默认开启）")
+        except Exception as e:
+            print(f"  ⚠ FLEET_SCHEDULER 迁移检查失败（忽略）: {e}")
         return True
     if p.env_example_file.exists():
         p.env_file.write_text(
@@ -120,18 +132,28 @@ def _ensure_env_file() -> bool:
     return False
 
 
+def _log_file(name: str) -> Path:
+    """返回落盘日志路径 data/logs/<name>-<日期>.log，并确保目录存在。"""
+    log_dir = paths().ensure_dir(paths().data_dir / "logs")
+    return log_dir / f"{name}-{datetime.now():%Y%m%d}.log"
+
+
 def _start_console(port: int) -> bool:
-    """启动控制台（python -m fleet.console.server）"""
+    """启动控制台（python -m fleet.console.server），stdout/stderr 落盘 data/logs/。"""
     print(f"\n=== 启动控制台 (端口 {port}) ===")
     try:
         creationflags = _get_creationflags()
+        log_path = _log_file("console")
+        log_fp = open(log_path, "ab")
         subprocess.Popen(
             [sys.executable, "-m", "fleet.console.server"],
             cwd=str(paths().root),
             env=_child_env({"FLEET_CONSOLE_PORT": str(port)}),
+            stdout=log_fp,
+            stderr=subprocess.STDOUT,
             creationflags=creationflags,
         )
-        print(f"  ✓ 控制台启动命令已发送")
+        print(f"  ✓ 控制台启动命令已发送（日志: {log_path}）")
         return True
     except Exception as e:
         print(f"  ✗ 控制台启动失败: {e}")
@@ -139,17 +161,25 @@ def _start_console(port: int) -> bool:
 
 
 def _start_manager_gateway(port: int = 9900) -> bool:
-    """启动Manager网关"""
+    """启动Manager网关（Hermes 可选插件：未安装则跳过并报告，不再硬依赖）"""
+    from fleet.executors.base import resolve_cli
+
     print(f"\n=== 启动Manager网关 (端口 {port}) ===")
     try:
+        hermes_cli = resolve_cli("hermes")
+        if shutil.which("hermes") is None:
+            print("  ⚠ 未安装 hermes CLI，跳过 Manager 网关（内置调度器继续工作）")
+            return False
         creationflags = _get_creationflags()
+        log_path = _log_file("manager-gateway")
+        log_fp = open(log_path, "ab")
         subprocess.Popen(
-            ["hermes", "-p", "manager", "gateway", "run"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            [hermes_cli, "-p", "manager", "gateway", "run"],
+            stdout=log_fp,
+            stderr=subprocess.STDOUT,
             creationflags=creationflags,
         )
-        print(f"  ✓ Manager网关启动命令已发送")
+        print(f"  ✓ Manager网关启动命令已发送（日志: {log_path}）")
         return True
     except Exception as e:
         print(f"  ✗ Manager网关启动失败: {e}")
@@ -157,41 +187,34 @@ def _start_manager_gateway(port: int = 9900) -> bool:
 
 
 def _health_check(console_port: int = 5000, manager_port: int = 9900) -> dict[str, bool]:
-    """探活检查"""
+    """单次探活检查（静默，不打印；进度输出由 _wait_console_healthy 统一负责）"""
     import json
     import urllib.request
 
-    print("\n=== 健康检查 ===")
     result = {"console": False, "manager": False}
 
     # 检查控制台
     try:
         url = f"http://127.0.0.1:{console_port}/api/health"
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
             if (isinstance(data.get("version"), str) and data["version"]
                     and all(data.get(key) is True for key in ("db", "events", "config"))):
-                print(f"  ✓ 控制台健康检查通过")
                 result["console"] = True
-            else:
-                print(f"  ✗ 控制台健康检查失败: {data}")
-    except Exception as e:
-        print(f"  ⚠ 控制台健康检查跳过: {e}")
+    except Exception:
+        pass
 
-    # 检查Manager网关
+    # 检查Manager网关（不可用仅告警，不阻断启动）
     try:
         url = f"http://127.0.0.1:{manager_port}/.well-known/agent-card.json"
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
             if data.get("name") == "Hermes-Manager":
-                print(f"  ✓ Manager网关健康检查通过")
                 result["manager"] = True
-            else:
-                print(f"  ✗ Manager网关名称不匹配: {data}")
-    except Exception as e:
-        print(f"  ⚠ Manager网关健康检查跳过: {e}")
+    except Exception:
+        pass
 
     return result
 
@@ -217,6 +240,11 @@ def _register_project(project_name: str, project_path: str) -> Optional[str]:
         # 从系统环境变量读取
         env_roots = os.environ.get("FLEET_ALLOWED_ROOTS", "")
         allowed_roots = [r.strip() for r in env_roots.split(",") if r.strip()]
+    if not allowed_roots:
+        # F2 修复：默认允许本仓库根目录，保证首次安装不配置也能建项目；
+        # 更大的白名单仍需显式配置（安全边界不放宽到整个磁盘）。
+        allowed_roots = [str(paths().root)]
+        print(f"  ⚠ FLEET_ALLOWED_ROOTS 未配置，默认允许仓库根目录: {allowed_roots[0]}")
 
     project_path_resolved = Path(project_path).resolve()
     is_allowed = False
@@ -277,6 +305,36 @@ def _start_watch_events_loop(project_id: str) -> Optional[asyncio.Task]:
         return None
 
 
+def _wait_console_healthy(
+    console_port: int,
+    manager_port: int,
+    reused: bool = False,
+    timeout_s: float = 20.0,
+    interval_s: float = 0.5,
+) -> dict[str, bool]:
+    """轮询健康检查：Windows 冷启动常超 1 秒，一次性探测会误杀正常启动。
+
+    每 interval 探测一次，直到控制台就绪或超时；最后一次失败时输出末次诊断。
+    """
+    print(f"\n[6/9] 健康检查（轮询，最多 {timeout_s:.0f}s）")
+    deadline = time.monotonic() + timeout_s
+    if reused:
+        # 已占用端口复用：服务已在跑，但仍给它一个短窗口就绪
+        deadline = min(deadline, time.monotonic() + 5.0)
+    health: dict[str, bool] = {"console": False, "manager": False}
+    attempt = 0
+    while True:
+        attempt += 1
+        health = _health_check(console_port, manager_port)
+        if health["console"]:
+            print(f"  ✓ 控制台在第 {attempt} 次探测后就绪")
+            return health
+        if time.monotonic() >= deadline:
+            print(f"  ✗ 控制台在 {timeout_s:.0f}s 内未就绪（共探测 {attempt} 次），日志见 data/logs/")
+            return health
+        time.sleep(interval_s)
+
+
 def launch_core(request: LaunchRequest) -> dict:
     """统一流程：9步启动
 
@@ -334,10 +392,7 @@ def launch_core(request: LaunchRequest) -> dict:
     manager_started = _check_port(manager_port) or _start_manager_gateway(manager_port)
     result["steps"].append({"step": "start_manager_gateway", "ok": manager_started})
 
-    print("\n[6/9] 健康检查")
-    if not reused:
-        time.sleep(1)
-    health = _health_check(request.port, manager_port)
+    health = _wait_console_healthy(request.port, manager_port, reused=reused)
     result["steps"].append({"step": "health_check", "ok": health["console"], "health": health})
     if not health["console"]:
         result["errors"].append("控制台健康检查失败，停止项目注册与执行")

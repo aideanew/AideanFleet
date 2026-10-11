@@ -1,0 +1,11 @@
+# Claude Code（Anthropic 协议；模型池是 OpenAI 兼容端点，故 claude 不吃模型池，
+# 用宿主自身凭据；协议说明见 docs/架构.md 的 Harness Profiles 一节）
+name: claude
+detect: ["claude", "--version"]
+auth_check: ["claude", "-p", "reply OK", "--output-format", "json"]
+invoke: ["claude", "-p", "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions"]
+prompt_via: stdin
+model_protocol: anthropic
+output_parser: claude_stream_json
+session_resume: ["--resume", "{session_id}"]
+timeout_idle_s: 180

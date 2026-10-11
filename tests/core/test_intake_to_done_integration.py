@@ -27,7 +27,18 @@ def test_intake_to_done_aggregates_real_dispatch_usage(fleet_env, monkeypatch):
             root = Path(workdir)
             (root / "docs").mkdir(exist_ok=True)
             (root / "docs" / "design.md").write_text(
-                "# Design\nPython entry point: src/main.py\n", encoding="utf-8"
+                "# 架构设计\n\n"
+                "## 1. 技术选型\n"
+                "采用 Python 标准库实现，零第三方依赖；理由是交付环境离线可运行、维护成本低，\n"
+                "且当前需求不涉及高并发场景。后续如需 Web 界面再引入 FastAPI 与 Vue3。\n\n"
+                "## 2. 模块划分与目录结构\n"
+                "src/main.py 作为唯一入口，负责参数解析与调度；核心引擎层承载业务实体与规则，\n"
+                "以纯函数实现便于测试；展示层负责格式化输出。模块之间只通过函数接口通信，\n"
+                "禁止隐式全局状态。目录结构：src/ 源代码、docs/ 文档、tests/ 单元测试。\n\n"
+                "## 3. 数据流与依赖\n"
+                "输入经主入口解析后进入核心引擎处理，结果序列化后输出到标准输出；\n"
+                "数据结构以 dict/dataclass 为主，无外部存储依赖，接口以函数调用为主。\n",
+                encoding="utf-8"
             )
             (root / "src").mkdir(exist_ok=True)
             (root / "src" / "main.py").write_text("print('OK')\n", encoding="utf-8")

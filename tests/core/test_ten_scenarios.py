@@ -195,7 +195,7 @@ def test_scenario_8_gate_fail_rework_without_llm(project, stub_registry, tmp_pat
     stub_registry.register("stub", adapter)
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    make_task(project, "T-008", verify_cmd='python -c "import sys; sys.exit(2)"', workspace=str(workspace))
+    make_task(project, "T-008", verify_cmd='"{python}" -c "import sys; sys.exit(2)"', workspace=str(workspace))
 
     assert dispatcher.dispatch("T-008").state == "SUBMITTED"
 
@@ -267,7 +267,7 @@ def test_scenario_10_mock_executor_eight_events(project, stub_registry, tmp_path
     (workspace / "deliver.txt").write_text("done", encoding="utf-8")
 
     pack = TaskPack(
-        id="T-010", title="全链演练", detail="从创建到 DONE", verify_cmd='python -c "print(1)"',
+        id="T-010", title="全链演练", detail="从创建到 DONE", verify_cmd='"{python}" -c "print(1)"',
         assignee="worker-a", reviewer="reviewer-1", workspace=str(workspace), forbidden_files=".env",
         project_id=project,
     )

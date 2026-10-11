@@ -1,6 +1,6 @@
 """这是什么：任务数据库（SQLite）。存"现在在哪"——任务进度表、项目表、状态持久化，支持断点恢复。
 怎么用：from fleet.core import db;  db.init_db();  db.create_task({...});  db.transition_and_log(...)
-约定：字段名见 docs/契约/任务进度表字段.md（前 15 个字段冻结）；状态非法迁移一律抛 InvalidTransition 且不落库。
+约定：字段名见 docs/契约.md（前 15 个字段冻结）；状态非法迁移一律抛 InvalidTransition 且不落库。
 配套：events.jsonl 记"发生过什么"，本模块只改状态；两者由 db.transition_and_log 按契约顺序一起写。
 """
 
@@ -16,7 +16,7 @@ from typing import Any, Iterator
 from . import state_machine as sm
 from .paths import paths
 
-#: 契约字段（15 个，字段名与顺序冻结）—— 见 docs/契约/任务进度表字段.md §1
+#: 契约字段（15 个，字段名与顺序冻结）—— 见 docs/契约.md §1
 CONTROL_PLANE_CONTRACT_FIELDS: tuple[str, ...] = (
     "task_id",
     "role",
@@ -35,8 +35,8 @@ CONTROL_PLANE_CONTRACT_FIELDS: tuple[str, ...] = (
     "updated_at",
 )
 
-#: 扩展字段（TaskPack 与机器门需要）—— 见 docs/契约/任务进度表字段.md §2
-#  dependencies（JSON 数组，依赖的 task_id）由 CORE-02 按 docs/规划总览.md L283 新增，
+#: 扩展字段（TaskPack 与机器门需要）—— 见 docs/契约.md §2
+#  dependencies（JSON 数组，依赖的 task_id）由 CORE-02 按 docs/架构.md L283 新增，
 #  属于对扩展字段清单的“新增”，不动 15 个冻结字段。
 #  context_budget / memory_refs / retry_context 由 CORE-04（契约 v1.2 §13.1）新增：
 #  上下文成本三扩展列，见 任务进度表字段.md §2.1。
@@ -243,7 +243,7 @@ def create_task(fields: dict[str, Any], db_file: str | Path | None = None) -> di
 
     unknown = [key for key in data if key not in TASK_FIELDS]
     if unknown:
-        raise ValueError(f"未知字段（字段名已冻结，见 docs/契约/任务进度表字段.md）：{unknown}")
+        raise ValueError(f"未知字段（字段名已冻结，见 docs/契约.md）：{unknown}")
 
     columns = [key for key in TASK_FIELDS if key in data]
     placeholders = ", ".join("?" for _ in columns)

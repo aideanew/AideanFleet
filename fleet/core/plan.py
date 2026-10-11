@@ -1,6 +1,6 @@
 """这是什么：三级大纲规划文件 plan.json 的读写。Manager 每次分配后调它重写，控制台按它显示进度。
 怎么用：from fleet.core import plan;  plan.update_task("P-001", "阶段0", "写契约", "T-001")
-结构：{project, updated_at, 阶段:[{名称, 任务:[{子任务, task_id, state}]}]}（字段名冻结，见 docs/契约/任务进度表字段.md §7）
+结构：{project, updated_at, 阶段:[{名称, 任务:[{子任务, task_id, state}]}]}（字段名冻结，见 docs/契约.md §7）
 写盘：临时文件 + os.replace 原子替换，避免控制台读到半个 JSON。
 """
 
@@ -281,7 +281,7 @@ def project_progress(project_id: str) -> dict[str, Any]:
 def snapshot(project_id: str) -> dict[str, Any]:
     """API 用快照：plan.json 的骨架 + 与 SQLite 合并后的 tasks 列表。
 
-    字段见 docs/契约/控制台API.md §2（tasks[].id/state/assignee/reviewer/verify_cmd…）。
+    字段见 docs/契约.md §2（tasks[].id/state/assignee/reviewer/verify_cmd…）。
     扩展键：progress（权重进度树，需求3）、plan_exists（plan.json 是否已生成，需求2）。
     """
     from . import db  # 延迟导入，避免循环

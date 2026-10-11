@@ -61,7 +61,7 @@ def _parse_json_object(raw: Any) -> dict[str, Any] | None:
 
 @dataclass
 class Capabilities:
-    """适配器能力自述（`初始设计/d7.md`：不同 CLI 能力并不相同，不能假设一致）。"""
+    """适配器能力自述（`docs/架构.md`：不同 CLI 能力并不相同，不能假设一致）。"""
 
     streaming: bool = False
     structured_output: bool = False

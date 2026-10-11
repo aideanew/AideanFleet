@@ -22,7 +22,7 @@ provider=stub model=demo-1 未降级
 def test_add_entry_schema_frozen(fleet_env, project):
     entry = memory.add_entry(
         "P-001", kind="decision", title="采用 SQLite 单文件",
-        summary="d7.md 裁决：SQLite 存现在，events 存过去，evidence 存证据。", refs=["docs/adr.md"],
+        summary="d7.md 裁决：SQLite 存现在，events 存过去，evidence 存证据。", refs=["docs/进度与决策.md"],
     )
     # schema 七字段冻结（控制台API.md §13.3）
     assert tuple(entry.keys()) == memory.ENTRY_FIELDS

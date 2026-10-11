@@ -35,7 +35,7 @@ def test_resolve_to_done_chain(fleet_env, project, tmp_path):
     (workspace / "deliver.txt").write_text("done", encoding="utf-8")
     pack = TaskPack(
         id="T-R01", title="resolve 全链护栏", detail="resolve→派工→DONE",
-        verify_cmd='python -c "print(1)"', assignee="worker-a", reviewer="reviewer-1",
+        verify_cmd='"{python}" -c "print(1)"', assignee="worker-a", reviewer="reviewer-1",
         workspace=str(workspace), forbidden_files=".env", project_id=project, adapter="fake",
     )
     dispatcher.create_task(pack, project_id=project, stage="阶段0", subtask="resolve 全链护栏")

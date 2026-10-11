@@ -1,4 +1,4 @@
-name: "Fleet 测试"
+name: "Fleet 测试与打包"
 
 on:
   push:
@@ -39,3 +39,58 @@ jobs:
       run: |
         python -m pytest tests --tb=short -q
       shell: bash
+
+  frontend:
+    name: "构建控制台前端"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install & build frontend
+        working-directory: fleet/console/web
+        run: |
+          npm install --no-fund --no-audit
+          npm run build
+
+      - name: Verify dist landed at fleet/console/dist
+        run: test -f fleet/console/dist/index.html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: console-dist
+          path: fleet/console/dist/
+          retention-days: 14
+
+  wheel:
+    name: "构建 wheel（含前端 dist）"
+    needs: [test, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: console-dist
+          path: fleet/console/dist/
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+          python -m pip install dist/*.whl
+          python -c "from importlib.resources import files; p = files('fleet.console').joinpath('dist/index.html'); assert p.is_file(), 'wheel 缺少前端 dist'"
+          echo "wheel 校验通过：dist 已打进包内"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aideanfleet-wheel
+          path: dist/*.whl
+          retention-days: 30

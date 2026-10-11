@@ -84,23 +84,83 @@ def ensure_paths(task: dict[str, Any]) -> dict[str, str]:
     return {"report_path": task["report_path"], "evidence_path": task["evidence_path"], "baseline_path": task["baseline_path"]}
 
 
+def _role_adapter_chain(assignee: str) -> list[str]:
+    """data/role_adapters.json 里该角色的有序适配器链（控制台可写，可为空）。"""
+    try:
+        import json as _json
+
+        path = paths().data_dir / "role_adapters.json"
+        if not path.exists():
+            return []
+        data = _json.loads(path.read_text(encoding="utf-8"))
+        chain = data.get(assignee) or []
+        return [str(item).strip() for item in chain if str(item).strip()]
+    except Exception:
+        return []
+
+
+def _adapter_candidates(task: dict[str, Any]) -> list[str]:
+    """C2 修复：解析候选适配器链（去重、保序）。
+
+    顺序：任务指定 adapter → 角色配置 adapter → role_adapters.json 角色链 → direct（模型池直连兜底）。
+    任何一级不可用自动降到下一级，而不是第一步就 BLOCKED。
+    """
+    names: list[str] = []
+    primary = str(task.get("adapter") or "").strip()
+    if primary:
+        names.append(primary)
+    for role in fleet_config.load("roles").get("roles", []):
+        if role.get("name") == task.get("assignee"):
+            role_adapter = str(role.get("adapter") or "").strip()
+            if role_adapter:
+                names.append(role_adapter)
+            break
+    names.extend(_role_adapter_chain(str(task.get("assignee") or "")))
+    names.append("direct")
+    seen: set[str] = set()
+    ordered = [n for n in names if not (n in seen or seen.add(n))]
+    return ordered
+
+
 def _adapter_for(task: dict[str, Any]) -> BaseAdapter:
-    """解析执行体适配器：优先任务上的 adapter 字段，其次角色配置里的 adapter。"""
-    name = str(task.get("adapter") or "").strip()
-    if not name:
-        for role in fleet_config.load("roles").get("roles", []):
-            if role.get("name") == task.get("assignee"):
-                name = str(role.get("adapter") or "").strip()
-                break
-    # 持久化解析后的适配器名到 DB（P-008 实测：DB adapter 列恒为空，身份仅存事件流）
-    if name and not str(task.get("adapter") or "").strip() and task.get("task_id"):
-        try:
-            db.update_task(str(task["task_id"]), adapter=name)
-        except Exception:
-            pass
+    """解析执行体适配器：按 _adapter_candidates 顺序找第一个可用的；全不可用抛 AdapterNotAvailable。
+
+    主选不可用而降级命中后续候选时，发 adapter:degraded 事件供 UI 标红原因。
+    """
     from .contracts import resolve
 
-    return resolve(name)
+    candidates = _adapter_candidates(task)
+    last_error: Exception | None = None
+    for index, name in enumerate(candidates):
+        try:
+            adapter = resolve(name)
+        except AdapterNotAvailable as error:
+            last_error = error
+            continue
+        if index > 0:
+            events.append(
+                actor="dispatcher",
+                action="adapter:degraded",
+                task_id=str(task.get("task_id") or ""),
+                project=str(task.get("project_id") or "") or None,
+                summary=f"{task.get('task_id')} 适配器降级：{candidates[0]} 不可用，改用 {name}",
+                extra={"candidates": candidates, "resolved": name},
+            )
+        # 持久化解析后的适配器名到 DB（P-008 实测：DB adapter 列恒为空，身份仅存事件流）
+        if not primary_name(task) and task.get("task_id"):
+            try:
+                db.update_task(str(task["task_id"]), adapter=name)
+            except Exception:
+                pass
+        return adapter
+    raise AdapterNotAvailable(
+        f"所有候选适配器均不可用（{' -> '.join(candidates) or '空'}）；最后错误: {last_error}"
+    )
+
+
+def primary_name(task: dict[str, Any]) -> str:
+    """任务上显式指定的适配器名（空串表示未指定）。"""
+    return str(task.get("adapter") or "").strip()
 
 
 def _model_candidates(assignee: str) -> list[tuple[str | None, str]]:
@@ -143,7 +203,14 @@ def _build_prompt(pack: TaskPack) -> str:
     - 返工任务（retry_context 非空）只发增量 retry_context + 修复指令，不重发记忆/全量上下文；
     - 新任务 = system_prompt + 记忆头（按 memory_refs 引用） + 任务说明 + 预算裁剪后的上下文文件；
     - 统一追加工作区与路径约束，不假定执行体使用哪一种 shell。
+    - verify_cmd 的 {python} 占位替换为 Fleet 自身解释器绝对路径（执行体拿到可直接运行的命令；
+      DB 里保留占位符以便跨机器迁移）。
     """
+    import sys as _sys
+    from dataclasses import replace as _dc_replace
+
+    if "{python}" in (pack.verify_cmd or ""):
+        pack = _dc_replace(pack, verify_cmd=pack.verify_cmd.replace("{python}", _sys.executable))
     env_note = (
         "\n\n【执行环境约束】以工具实际使用的 shell 为准，不因 Windows 就假定 PowerShell：\n"
         "- 工作区内优先使用相对路径；绝对路径使用正斜杠并加引号（例如 \"E:/Demo/project/src\"），禁止裸反斜杠路径；\n"

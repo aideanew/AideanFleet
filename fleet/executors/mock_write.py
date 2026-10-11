@@ -133,9 +133,11 @@ def _extract_field(prompt: str, marker: str) -> str:
 def _parse_verify_targets(verify_cmd: str) -> list[str]:
     """从 verify_cmd 中解析被检查的文件路径。
 
-    支持两种模式：
+    支持三种模式：
     - pathlib.Path('docs/design.md') → docs/design.md
     - ('index.html','src/main.ts',...) → index.html, src/main.ts, ...
+    - '"{python}" -m fleet.gates.doclint docs/design.md' → docs/design.md
+    - '"{python}" -m fleet.gates.project_gate' → 默认交付物对（docs/design.md + src/main.py）
     """
     targets: list[str] = []
 
@@ -144,16 +146,23 @@ def _parse_verify_targets(verify_cmd: str) -> list[str]:
         targets.append(m.group(1))
 
     # 模式 2: 括号内的文件列表 ('a','b','c')
-    # 匹配 for p in ('index.html','src/main.ts',...) 形式
     for m in re.finditer(r"for\s+p\s+in\s+\(([^)]+)\)", verify_cmd):
         for fm in re.finditer(r"['\"]([^'\"]+)['\"]", m.group(1)):
             path = fm.group(1)
-            # 跳过非文件路径（如 'src' 或 'game' 这样的目录名，单独处理）
             if "." in path or "/" in path:
                 targets.append(path)
             else:
-                # 可能是目录名，创建一个占位文件
                 targets.append(f"{path}/.gitkeep")
+
+    # 模式 3: fleet.gates.doclint/project_gate 模块验收（A5 后的默认命令形态）
+    if "fleet.gates.doclint" in verify_cmd:
+        for token in verify_cmd.split():
+            if "/" in token and not token.startswith("-") and "fleet.gates" not in token:
+                targets.append(token.strip('"'))
+        if "docs/design.md" not in targets:
+            targets.append("docs/design.md")
+    elif "fleet.gates.project_gate" in verify_cmd:
+        targets.extend(["docs/design.md", "src/main.py"])
 
     # 如果没匹配到任何目标，用默认值
     if not targets:
@@ -163,14 +172,26 @@ def _parse_verify_targets(verify_cmd: str) -> list[str]:
 
 
 def _template_for(rel_path: str) -> str:
-    """根据文件路径返回模板内容。"""
+    """根据文件路径返回模板内容（设计文档必须通过 doclint 实质校验：≥300 有效字符、
+    ≥3 个标题、覆盖 ≥3 类设计主题——A5 之后"存在即通过"不再被机器门接受）。"""
     if rel_path.endswith(".md"):
         if "design" in rel_path:
             return (
                 "# 设计文档\n\n"
-                "## 技术选型\n- 语言：Python\n- 框架：标准库\n\n"
-                "## 目录结构\n- src/ — 源代码\n- docs/ — 文档\n\n"
-                "## 模块划分\n1. 核心引擎\n2. 界面层\n3. 集成测试\n"
+                "## 1. 技术选型\n"
+                "语言采用 Python 3.11 标准库实现，零第三方依赖；理由是交付环境离线可运行、\n"
+                "维护成本低，且当前需求不涉及高并发场景。后续如需 Web 界面再引入 FastAPI。\n\n"
+                "## 2. 架构与模块划分\n"
+                "采用三层结构：入口层（src/main.py 负责参数解析与调度）、\n"
+                "核心引擎层（业务实体与规则，纯函数实现便于测试）、展示层（格式化输出）。\n"
+                "模块之间只通过函数接口通信，禁止隐式全局状态。\n\n"
+                "## 3. 目录结构\n"
+                "- src/ — 全部源代码，main.py 为唯一入口\n"
+                "- docs/ — 设计文档与交付说明\n"
+                "- tests/ — 单元测试\n\n"
+                "## 4. 数据流与依赖\n"
+                "输入经入口解析后传入核心引擎处理，结果序列化后输出到标准输出；\n"
+                "数据结构以 dict/dataclass 为主，无外部存储依赖。\n"
             )
         return "# 报告\n\nMockWriteAdapter 生成。\n"
     if rel_path.endswith(".py"):

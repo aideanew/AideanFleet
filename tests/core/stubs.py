@@ -61,7 +61,7 @@ def rework_route() -> FakeRoute:
     return FakeRoute("审查意见：实现不完整。VERDICT: REWORK")
 
 
-def make_task(project_id: str, task_id: str = "T-001", *, verify_cmd: str = 'python -c "print(1)"',
+def make_task(project_id: str, task_id: str = "T-001", *, verify_cmd: str = '"{python}" -c "print(1)"',
               workspace: str = "", allowed: str = "", forbidden: str = ".env",
               dependencies: list[str] | None = None) -> dict[str, Any]:
     """直接在 SQLite 里登记一个任务（绕过 dispatcher.create_task 的事件副作用，便于分场景组装）。"""

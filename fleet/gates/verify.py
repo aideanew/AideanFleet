@@ -284,13 +284,21 @@ def _split_flattened(name: str) -> list[str] | None:
 
 
 def run_command(command: str, cwd: str | Path, timeout: int | None = None) -> tuple[int | None, str]:
-    """原样执行命令（shell=True），返回 (exit_code, 输出)。超时返回 (None, 带 TIMEOUT 标记的输出)。"""
+    """执行命令（shell=True），返回 (exit_code, 输出)。超时返回 (None, 带 TIMEOUT 标记的输出)。
+
+    `{python}` 占位符替换为本进程的 sys.executable：机器门必须跑在与 Fleet 相同的
+    解释器环境里（裸 `python` 在 Windows 上常解析到 Microsoft Store 占位 stub，
+    会让验收命令静默失败——A5 真实验收的可靠性前提）。
+    """
+    import sys as _sys
+
     from fleet.models import retry
 
+    resolved = str(command).replace("{python}", _sys.executable)
     limit = timeout or retry.policy().timeout_seconds
     try:
         completed = subprocess.run(
-            command,
+            resolved,
             cwd=str(cwd),
             shell=True,
             capture_output=True,

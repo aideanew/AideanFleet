@@ -1,5 +1,5 @@
 """这是什么：events.jsonl 月度轮转 + 证据目录归档 + seq 连续性校验（REL-01 §9.4）。
-语义冻结（docs/契约/控制台API.md §14 增补注记，与角色D 对齐）：
+语义冻结（docs/契约.md §14 增补注记，与角色D 对齐）：
   · events.read / read_events_since 只查热数据（data/events.jsonl）；归档数据走报表通道
     fleet.rel.archive.read_all()（按 seq 全序合并归档与热数据）。
   · 轮转锚点：归档前先写一条 rel:archived 事件占住当前最大 seq，随后热文件只保留

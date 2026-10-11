@@ -56,6 +56,11 @@ def _allowed_roots() -> list[str]:
     if not roots:
         env_roots = os.environ.get("FLEET_ALLOWED_ROOTS", "")
         roots = [r.strip() for r in env_roots.split(",") if r.strip()]
+    if not roots:
+        # F2 修复：未配置时默认允许本仓库根目录，首次安装不再"intake 直接报错"。
+        from ..core.paths import paths
+
+        roots = [str(paths().root)]
     return roots
 
 
@@ -99,11 +104,17 @@ def detect_mode(message: str) -> str | None:
 
 
 def _plan_templates(requirements: str) -> list[tuple[str, list[dict[str, str]]]]:
-    """默认三级计划模板：技术设计 → 核心实现（并行） → 测试验收。requirements 全文入 detail。"""
+    """默认三级计划模板：技术设计 → 核心实现（并行） → 测试验收。requirements 全文入 detail。
+
+    A5 修复：verify 必须是真实命令——设计文档走 doclint（篇幅/结构/关键词实质校验），
+    交付物走 project_gate（有构建脚本跑真实构建，有源码做编译校验，且拒绝空壳文件），
+    不再接受"文件存在即通过"。
+    """
     brief = (requirements or "").strip() or "（需求未提供，按项目名合理设计）"
-    verify_doc = 'python -c "import pathlib,sys; sys.exit(0 if pathlib.Path(\'docs/design.md\').exists() else 1)"'
-    verify_build = ('python -c "import pathlib,sys; sys.exit(0 if any(pathlib.Path(p).exists() '
-                    "for p in ('index.html','src/main.ts','src/main.js','src/main.py','src','game')) else 1)\"")
+    # {python} 占位由 gates.verify.run_command 替换为 Fleet 自身解释器，
+    # 避免 Windows 裸 `python` 解析到 Store 占位 stub 导致机器门静默失败。
+    verify_doc = '"{python}" -m fleet.gates.doclint docs/design.md'
+    verify_build = '"{python}" -m fleet.gates.project_gate'
 
     def detail(responsibility: str, done: str) -> str:
         return (

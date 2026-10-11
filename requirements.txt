@@ -5,3 +5,5 @@ uvicorn[standard]==0.53.0 # fleet/console/server.py main()（ASGI 服务）
 websockets==17.1.0        # /ws 实时通道（uvicorn[standard] 亦携带，显式声明保证测试可用）
 httpx2>=2.13.1            # fastapi.testclient 推荐的 HTTP 客户端（替代已废弃的 httpx）
 pytest==9.1.1             # 测试框架（python -m pytest tests -q）
+pytest-timeout==2.4.0     # 单测硬超时（pyproject: timeout=120），卡死的测试按失败处理不拖死套件
+

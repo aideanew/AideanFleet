@@ -14,7 +14,7 @@ from typing import Any
 
 from .paths import paths
 
-#: 事件行字段（7 个冻结 + 2 个扩展），见 docs/契约/控制台API.md §3
+#: 事件行字段（7 个冻结 + 2 个扩展），见 docs/契约.md §3
 EVENT_FIELDS: tuple[str, ...] = (
     "seq",
     "timestamp",

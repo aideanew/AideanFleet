@@ -19,7 +19,7 @@ dev = [
 ]
 
 [project.scripts]
-fleet = "fleet.launcher.cli_start:main"
+fleet = "fleet.cli.main:main"
 
 [tool.setuptools]
 packages = { find = { include = ["fleet*"] } }
@@ -27,7 +27,11 @@ packages = { find = { include = ["fleet*"] } }
 [tool.setuptools.package-data]
 "fleet.console" = ["dist/**/*", "web/**/*"]
 "fleet.prompts" = ["*.md"]
+"fleet.harness" = ["profiles/*.yaml"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+# 单测硬超时：卡死的测试按失败处理并打印栈，绝不拖死整个套件
+timeout = 120
+timeout_method = "thread"
