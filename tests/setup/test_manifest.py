@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 from fleet.setup import load_manifest, manifest_path
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")

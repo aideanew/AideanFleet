@@ -73,6 +73,7 @@ def test_install_rejects_empty_components(tc, monkeypatch):
 
 def test_install_starts_job_and_job_endpoint_follows(tc, monkeypatch, tmp_path):
     _host(monkeypatch, "127.0.0.1")
+    monkeypatch.setattr("platform.machine", lambda: "AMD64")  # 与宿主架构无关（审计：arm64 沙箱曾误判）
     from tests.setup.test_setup_core import _write_fake_npm
 
     fake_npm = _write_fake_npm(tmp_path, fail=True)  # 失败路径：job 终态 failed
