@@ -1,7 +1,7 @@
 ﻿# AideanFleet 执行体 CLI 一键安装脚本（Windows PowerShell）
 # 用法：拉取 AideanFleet 后，在 PowerShell 运行：  powershell -ExecutionPolicy Bypass -File scripts\install_fleet_clis.ps1
 # 说明：自动安装 cline / gemini / grok / claude / codex / opencode 六个执行体 CLI，
-#       幂等（已装版本在 PATH 中即可跳过），成功信息实时打印；认证命令不在此脚本，见 docs/CLI安装与自动化部署指南.md。
+#       幂等（已装版本在 PATH 中即可跳过），成功信息实时打印；认证命令不在此脚本，见 docs/运维指南.md §4。
 # 平台：Windows（grok 仅支持官方安装器；npm 包 @xai-official/grok 仅 darwin/arm64）
 
 [CmdletBinding()]
@@ -79,4 +79,4 @@ if (-not $allOk) {
     Write-Host "`n部分 CLI 当前终端不可见：追加的 PATH 需要新开进程/终端后才生效。" -ForegroundColor Yellow
     Write-Host "验证命令： 'foreach ($c in 'cline','gemini','grok','claude','codex','opencode') { $m=Get-Command $c -EA SilentlyContinue; '{0,-9} {1}' -f $c, $m.Source }'" -ForegroundColor Yellow
 }
-Write-Host "`n完成。认证与 Fleet 无人值守口径请参考: docs/CLI安装与自动化部署指南.md" -ForegroundColor Cyan
+Write-Host "`n完成。认证与 Fleet 无人值守口径请参考: docs/运维指南.md §4" -ForegroundColor Cyan
