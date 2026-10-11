@@ -107,3 +107,78 @@ def test_invalid_diff_becomes_successor_retry(kernel):
     result = run_steer_todo(kernel, tid, lambda prompt: "不是 JSON")
     assert result.verdict == st.VERDICT_SUCCESSOR
     assert "重试" in result.note
+
+
+
+# ---- 审计回归（audit/verify-6c40830）----
+
+def _verifying_steer(kernel, gid, message="改"):
+    tid = kernel.create_todo(gid, kind="steer", title="调整计划", packet=message)
+    kernel.claim(tid, "w")
+    kernel.mark_running(tid, "w")
+    kernel.mark_verifying(tid, "w")
+    return tid
+
+
+def test_auto_steer_result_can_be_written_back_by_worker(kernel):
+    """auto 模式：run_steer_todo 之后 worker 的 transition(done) 必须成功（原实现抛错致 worker 崩溃）。"""
+    gid = kernel.create_goal("g")
+    tid = _verifying_steer(kernel, gid)
+    result = run_steer_todo(kernel, tid, lambda prompt: json.dumps(DIFF, ensure_ascii=False),
+                            auto_apply=True)
+    updated = kernel.transition(tid, result)
+    assert updated["status"] == st.DONE and updated["plan_decision"] == "approved"
+
+
+def test_repeated_local_ids_do_not_collide_and_deps_are_mapped(kernel):
+    """两次 steer 都用 N1/N2 局部编号：不得主键冲突；depends_on 映射到新 id。"""
+    gid = kernel.create_goal("g")
+    diff = {"add": [
+        {"id": "N1", "title": "a", "role": "be-1", "allowed_files": ["src/**"], "verify": ["true"]},
+        {"id": "N2", "title": "b", "role": "be-1", "allowed_files": ["src/**"], "verify": ["true"],
+         "depends_on": ["N1"]}], "cancel": [], "modify": []}
+    for _ in range(2):
+        tid = _verifying_steer(kernel, gid)
+        run_steer_todo(kernel, tid, lambda prompt: json.dumps(diff))
+        kernel.apply_plan_diff(tid, "approve")
+    added = [t for t in kernel.todos(gid) if t["kind"] == "exec"]
+    assert len(added) == 4
+    ids = {t["id"] for t in added}
+    for t in added:
+        if t["title"] == "b":
+            assert t["depends_on"] and t["depends_on"][0] in ids
+
+
+def test_decided_steer_leaves_attention_and_goal_can_finish(kernel):
+    """决策后 steer todo 不再停留在 needs_user；其余已完成时 goal 收口为 done。"""
+    gid = kernel.create_goal("g")
+    work = kernel.create_todo(gid, title="w", verify=["true"])
+    kernel.claim(work, "w"); kernel.mark_running(work, "w"); kernel.mark_verifying(work, "w")
+    kernel.transition(work, st.TurnResult(verdict="done", evidence_path="e"))
+    tid = _verifying_steer(kernel, gid)
+    run_steer_todo(kernel, tid, lambda prompt: json.dumps({"add": [], "cancel": [], "modify": []}))
+    assert kernel.get_todo(tid)["status"] == st.NEEDS_USER
+    kernel.apply_plan_diff(tid, "reject")
+    assert kernel.get_todo(tid)["status"] == st.SUPERSEDED
+    assert kernel.get_todo(tid)["plan_decision"] == "rejected"
+    assert all(t["id"] != tid for t in kernel.attention()["needs_user"])
+    goal = [g for g in kernel.attention()["goals"] if g["id"] == gid][0]
+    assert goal["status"] == "done"
+
+
+def test_cross_goal_and_in_flight_targets_are_refused(kernel):
+    """cancel 不得跨目标；也不得打断在跑 todo。"""
+    other = kernel.create_goal("other")
+    victim = kernel.create_todo(other, title="victim", verify=["true"])
+    gid = kernel.create_goal("g")
+    running = kernel.create_todo(gid, title="running", verify=["true"])
+    kernel.claim(running, "w2")
+    tid = _verifying_steer(kernel, gid)
+    result = run_steer_todo(kernel, tid, lambda prompt: json.dumps(
+        {"add": [], "cancel": [victim], "modify": []}))
+    assert result.verdict == st.VERDICT_SUCCESSOR  # 校验失败 → 重试
+    assert kernel.get_todo(victim)["status"] == st.OPEN
+    kernel.propose_plan_diff(tid, {"add": [], "cancel": [running, victim], "modify": []})
+    kernel.apply_plan_diff(tid, "approve")
+    assert kernel.get_todo(running)["status"] == st.CLAIMED
+    assert kernel.get_todo(victim)["status"] == st.OPEN

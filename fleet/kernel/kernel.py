@@ -511,19 +511,22 @@ class Kernel:
                     diff = json.loads(todo["packet"] or "{}")
                 except json.JSONDecodeError:
                     diff = {}
-            if todo["status"] != st.NEEDS_USER:
-                # auto 直通路径：同事务先落 needs_user + pending 再应用
-                conn.execute(
-                    "UPDATE todos SET status=?, plan_decision='pending', updated_at=? WHERE id=?",
-                    (st.NEEDS_USER, _now_iso(), todo_id),
-                )
-                self._close_open_attempt(conn, todo_id, turn_result="needs_user")
+            auto_path = todo["status"] != st.NEEDS_USER
+            if auto_path:
+                # auto 直通路径（审计修复）：不再改成 needs_user——worker 随后以 done 写回，
+                # transition 只接受 verifying；原实现在此置 needs_user 导致写回抛错、worker 循环崩溃。
                 self._event(conn, "plan:diff_proposed", todo_id=todo_id, goal_id=todo["goal_id"],
                             diff=diff)
             applied = 0
+            skipped: list[str] = []
+            in_flight = (st.CLAIMED, st.RUNNING, st.VERIFYING)
             if decision == "approve":
+                # 审计修复：模型给的 add.id 是计划内局部编号（N1/N2…），不能直接当主键——
+                # 第二次 steer 再出 N1 即主键冲突。一律生成新 id，并映射 depends_on 中的局部编号。
+                id_map = {str(spec.get("id")): self._new_id()
+                          for spec in diff.get("add", []) if spec.get("id")}
                 for spec in diff.get("add", []):
-                    new_id = spec.get("id") or self._new_id()
+                    new_id = id_map.get(str(spec.get("id"))) or self._new_id()
                     conn.execute(
                         """INSERT INTO todos
                            (id, goal_id, kind, title, role, depends_on, allowed_files, verify,
@@ -532,7 +535,8 @@ class Kernel:
                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,'','',0,?,?)""",
                         (
                             new_id, todo["goal_id"], "exec", spec.get("title", "新任务"),
-                            spec.get("role", ""), json.dumps(spec.get("depends_on", [])),
+                            spec.get("role", ""),
+                            json.dumps([id_map.get(str(d), d) for d in spec.get("depends_on", [])]),
                             json.dumps(spec.get("allowed_files", [])),
                             json.dumps(spec.get("verify", [])), spec.get("done_when", ""),
                             f"steer_source={todo_id}", spec.get("workspace", todo["workspace"]),
@@ -544,8 +548,14 @@ class Kernel:
                                 role=spec.get("role", ""), steer_source=todo_id)
                     applied += 1
                 for cancel_id in diff.get("cancel", []):
-                    row = conn.execute("SELECT status FROM todos WHERE id=?", (cancel_id,)).fetchone()
+                    row = conn.execute(
+                        "SELECT status, goal_id FROM todos WHERE id=?", (cancel_id,)).fetchone()
                     if row is None or row["status"] in (st.DONE, st.SUPERSEDED):
+                        continue
+                    if row["goal_id"] != todo["goal_id"] or cancel_id == todo_id \
+                            or row["status"] in in_flight:
+                        # 审计修复：不跨目标、不取消自身、不打断在跑 todo（否则其写回必然失败）
+                        skipped.append(cancel_id)
                         continue
                     conn.execute(
                         "UPDATE todos SET status=?, updated_at=? WHERE id=?",
@@ -557,8 +567,12 @@ class Kernel:
                 for m in diff.get("modify", []):
                     fields = m.get("fields") or {}
                     target = conn.execute(
-                        "SELECT status FROM todos WHERE id=?", (m.get("todo_id"),)).fetchone()
+                        "SELECT status, goal_id FROM todos WHERE id=?", (m.get("todo_id"),)).fetchone()
                     if target is None or target["status"] in (st.DONE, st.SUPERSEDED):
+                        continue
+                    if target["goal_id"] != todo["goal_id"] or m.get("todo_id") == todo_id \
+                            or target["status"] in in_flight:
+                        skipped.append(str(m.get("todo_id")))
                         continue
                     sets, args = [], []
                     for key in ("title", "done_when", "packet"):
@@ -583,8 +597,30 @@ class Kernel:
                 "UPDATE todos SET plan_decision=?, updated_at=? WHERE id=?",
                 (new_decision, _now_iso(), todo_id),
             )
+            if not auto_path:
+                # 审计修复：用户决策后本 steer/plan todo 已了结。原实现停在 needs_user，
+                # 看板“待你决定”永不清空、goal 永远无法 done。状态机 needs_user 只能去
+                # open/superseded（MN-05 不加新状态），故以 superseded 终态收口，决定记在 plan_decision。
+                conn.execute(
+                    "UPDATE todos SET status=?, claim_expires_at=0, updated_at=? WHERE id=?",
+                    (st.SUPERSEDED, _now_iso(), todo_id),
+                )
             self._event(conn, "plan:decided", todo_id=todo_id, goal_id=todo["goal_id"],
-                        decision=decision, applied=applied, actor=actor)
+                        decision=decision, applied=applied, actor=actor, skipped=skipped)
+            if not auto_path:
+                unfinished = conn.execute(
+                    "SELECT COUNT(*) AS n FROM todos WHERE goal_id=? AND status NOT IN (?,?)",
+                    (todo["goal_id"], st.DONE, st.SUPERSEDED),
+                ).fetchone()["n"]
+                any_done = conn.execute(
+                    "SELECT COUNT(*) AS n FROM todos WHERE goal_id=? AND status=?",
+                    (todo["goal_id"], st.DONE),
+                ).fetchone()["n"]
+                goal_row = conn.execute(
+                    "SELECT status FROM goals WHERE id=?", (todo["goal_id"],)).fetchone()
+                if unfinished == 0 and any_done and goal_row and goal_row["status"] != "done":
+                    conn.execute("UPDATE goals SET status='done' WHERE id=?", (todo["goal_id"],))
+                    self._event(conn, "goal:done", goal_id=todo["goal_id"])
         return self.get_todo(todo_id)
 
     def _lineage_attempts(self, conn, lineage: str) -> int:
