@@ -41,15 +41,23 @@ def _tracked_root_entries() -> set[str]:
 
 
 def _untracked_not_ignored_root_entries() -> set[str]:
-    """git status 默认不显示已忽略文件，?? 即「未跟踪且未忽略」。"""
+    """git status 默认不显示已忽略文件，?? 即「未跟踪且未忽略」。
+
+    只统计根级条目（路径不含 /）：子目录内部的新文件（如 fleet/core/roots.py）
+    属于正常开发产物，不是根目录污染——split("/")[0] 会把顶层目录名误当污染。
+    """
     entries: set[str] = set()
     for record in _git("status", "--porcelain", "--untracked-files=normal"):
         # porcelain -z 记录格式：XY<space>path（XY 为两字符状态）
         if len(record) < 4:
             continue
         status, path = record[:2], record[3:]
-        if status == "??":
-            entries.add(path.split("/", 1)[0])
+        if status != "??":
+            continue
+        path = path.rstrip("/")
+        if "/" in path:
+            continue
+        entries.add(path)
     return entries
 
 
