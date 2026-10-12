@@ -29,6 +29,7 @@ from . import store
 
 DEFAULT_LEASE_SECONDS = 15 * 60
 DEFAULT_LINEAGE_LIMIT = 4  # 同一 lineage 最大 attempt 轮数，超过 → needs_user
+FREEZE_MIN_REQUIREMENTS = 10  # 冻结门槛：requirements 剥离空白后最少字符数（P3）
 
 _SEQ = itertools.count(1)
 
@@ -47,6 +48,14 @@ class KernelError(Exception):
 
 class DecisionAlreadyMade(KernelError):
     """计划变更已被决策（DECISION_ALREADY_MADE，errors.json）。"""
+
+
+class GoalAlreadyFrozen(KernelError):
+    """目标需求已冻结，禁止再澄清/再冻结（GOAL_ALREADY_FROZEN，errors.json）。"""
+
+
+class RequirementsNotReady(KernelError):
+    """需求未达冻结门槛（REQUIREMENTS_NOT_READY，errors.json）。"""
 
 
 class Kernel:
@@ -112,6 +121,25 @@ class Kernel:
             self._event(conn, "goal:created", goal_id=gid, title=title)
         return gid
 
+    def _insert_plan_todo(
+        self, conn, *, tid: str, gid: str, role: str,
+        requirements: str, workspace: str, plan_title: str,
+    ) -> None:
+        """kind=plan 规划 todo 落库（create_goal_with_plan 与 freeze_goal 共用，P3 提取）。"""
+        conn.execute(
+            """INSERT INTO todos
+               (id, goal_id, kind, title, role, depends_on, allowed_files, verify,
+                done_when, packet, workspace, status, lineage, attempt_count, successor_of,
+                claimed_by, claim_expires_at, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,'','',0,?,?)""",
+            (
+                tid, gid, "plan", plan_title, role,
+                json.dumps([]), json.dumps([]), json.dumps([]),
+                "产出的计划通过 schema 校验并写入", requirements, workspace,
+                st.OPEN, tid, _now_iso(), _now_iso(),
+            ),
+        )
+
     def create_goal_with_plan(
         self,
         title: str,
@@ -124,6 +152,7 @@ class Kernel:
         """F-02 修复：生产入口。同事务建 goal（含 requirements/workspace）+ kind=plan 的规划 todo。
 
         事件 goal:created 与 todo:created 同事务落 outbox。返回 (goal_id, plan_todo_id)。
+        requirements_state 走列默认值 'frozen'（direct 模式建即锁定）。
         """
         gid = f"G-{int(time.time() * 1000):x}-{next(_SEQ)}"
         tid = todo_id or self._new_id()
@@ -134,23 +163,95 @@ class Kernel:
                 " VALUES (?,?,?,?,?,?)",
                 (gid, title, "active", requirements, workspace, _now_iso()),
             )
-            conn.execute(
-                """INSERT INTO todos
-                   (id, goal_id, kind, title, role, depends_on, allowed_files, verify,
-                    done_when, packet, workspace, status, lineage, attempt_count, successor_of,
-                    claimed_by, claim_expires_at, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,'','',0,?,?)""",
-                (
-                    tid, gid, "plan", plan_title, role,
-                    json.dumps([]), json.dumps([]), json.dumps([]),
-                    "产出的计划通过 schema 校验并写入", requirements, workspace,
-                    st.OPEN, tid, _now_iso(), _now_iso(),
-                ),
+            self._insert_plan_todo(
+                conn, tid=tid, gid=gid, role=role,
+                requirements=requirements, workspace=workspace, plan_title=plan_title,
             )
             self._event(conn, "goal:created", goal_id=gid, title=title)
             self._event(conn, "todo:created", todo_id=tid, goal_id=gid,
                         todo_kind="plan", title=plan_title, role=role)
         return gid, tid
+
+    def create_goal_draft(
+        self,
+        title: str,
+        requirements: str,
+        workspace: str = "",
+        *,
+        goal_id: str | None = None,
+    ) -> str:
+        """P3 草稿模式：只建 goal（requirements_state='draft'），不建规划 todo。
+
+        事件 goal:created 落 outbox。后续经 append_goal_requirements 澄清、freeze_goal 冻结。
+        """
+        gid = goal_id or f"G-{int(time.time() * 1000):x}-{next(_SEQ)}"
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO goals (id, title, status, requirements, workspace,"
+                " requirements_state, created_at) VALUES (?,?,?,?,?,?,?)",
+                (gid, title, "active", requirements, workspace, "draft", _now_iso()),
+            )
+            self._event(conn, "goal:created", goal_id=gid, title=title)
+        return gid
+
+    def get_goal(self, goal_id: str) -> dict[str, Any]:
+        """P3：goal 全列投影（不存在 → KeyError，API 层映射 404）。"""
+        with self._conn() as conn:
+            return self._get_goal(conn, goal_id)
+
+    def append_goal_requirements(self, goal_id: str, addition: str) -> dict[str, Any]:
+        """P3 追加式澄清：draft 态把 addition 并入 requirements（空行分隔），可多次。
+
+        frozen 态 → GoalAlreadyFrozen。事件 goal:clarified。返回更新后的 goal。
+        """
+        with self._conn() as conn:
+            goal = self._get_goal(conn, goal_id)
+            if goal["requirements_state"] == "frozen":
+                raise GoalAlreadyFrozen(f"goal {goal_id} 需求已冻结，禁止追加澄清")
+            base = (goal["requirements"] or "").rstrip()
+            merged = f"{base}\n\n{addition.strip()}" if base else addition.strip()
+            conn.execute("UPDATE goals SET requirements=? WHERE id=?", (merged, goal_id))
+            self._event(conn, "goal:clarified", goal_id=goal_id, addition=addition[:200])
+            return self._get_goal(conn, goal_id)
+
+    def freeze_goal(
+        self,
+        goal_id: str,
+        *,
+        role: str = "planner",
+        todo_id: str | None = None,
+    ) -> tuple[str, str, dict[str, Any]]:
+        """P3 冻结：draft 态锁定 requirements 并同事务建 kind=plan 规划 todo。
+
+        - 需求剥离空白后 < FREEZE_MIN_REQUIREMENTS → RequirementsNotReady（不落任何写）；
+        - frozen 态再冻结 → GoalAlreadyFrozen；
+        - 事件 goal:frozen + todo:created 同事务落 outbox。
+        返回 (goal_id, plan_todo_id, goal)。
+        """
+        tid = todo_id or self._new_id()
+        with self._conn() as conn:
+            goal = self._get_goal(conn, goal_id)
+            if goal["requirements_state"] == "frozen":
+                raise GoalAlreadyFrozen(f"goal {goal_id} 需求已冻结，禁止重复冻结")
+            requirements = goal["requirements"] or ""
+            stripped = requirements.strip()
+            if len(stripped) < FREEZE_MIN_REQUIREMENTS:
+                raise RequirementsNotReady(
+                    f"需求太短（{len(stripped)} < {FREEZE_MIN_REQUIREMENTS} 字），先澄清再冻结")
+            title = goal["title"]
+            workspace = goal["workspace"] or ""
+            plan_title = f"拆解计划：{title[:80]}"
+            conn.execute(
+                "UPDATE goals SET requirements_state='frozen' WHERE id=?", (goal_id,))
+            self._insert_plan_todo(
+                conn, tid=tid, gid=goal_id, role=role,
+                requirements=requirements, workspace=workspace, plan_title=plan_title,
+            )
+            self._event(conn, "goal:frozen", goal_id=goal_id, title=title)
+            self._event(conn, "todo:created", todo_id=tid, goal_id=goal_id,
+                        todo_kind="plan", title=plan_title, role=role)
+            goal_out = self._get_goal(conn, goal_id)
+        return goal_id, tid, goal_out
 
     def create_todo(
         self,

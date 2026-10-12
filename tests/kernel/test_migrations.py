@@ -28,9 +28,10 @@ def test_fresh_db_has_migration_columns_and_version(tmp_path):
     cols_goals = _columns(conn, "goals")
     cols_todos = _columns(conn, "todos")
     assert {"requirements", "workspace"} <= cols_goals
+    assert "requirements_state" in cols_goals
     assert "plan_decision" in cols_todos
     versions = {row["version"] for row in conn.execute("SELECT version FROM schema_version")}
-    assert versions >= {2}
+    assert versions >= {3}
 
 
 def test_old_001_db_upgrades_losslessly(tmp_path):
@@ -52,11 +53,15 @@ def test_old_001_db_upgrades_losslessly(tmp_path):
     init_db(db_path)
     conn = connect(db_path)
     assert {"requirements", "workspace"} <= _columns(conn, "goals")
+    assert "requirements_state" in _columns(conn, "goals")
     assert "plan_decision" in _columns(conn, "todos")
     assert conn.execute("SELECT COUNT(*) AS n FROM goals").fetchone()["n"] == 1
     assert conn.execute("SELECT COUNT(*) AS n FROM todos").fetchone()["n"] == 1
     row = conn.execute("SELECT requirements, workspace FROM goals WHERE id='G-1'").fetchone()
     assert row["requirements"] == "" and row["workspace"] == ""
+    # 003：旧 goal 行取默认 'frozen'（历史 goal 均为自动出计划，需求即视为已锁定）
+    state = conn.execute("SELECT requirements_state FROM goals WHERE id='G-1'").fetchone()
+    assert state["requirements_state"] == "frozen"
     todo = conn.execute("SELECT plan_decision FROM todos WHERE id='T-1'").fetchone()
     assert todo["plan_decision"] == "none"
 
@@ -67,7 +72,7 @@ def test_repeated_init_is_idempotent(tmp_path):
     init_db(db_path)
     init_db(db_path)
     conn = connect(db_path)
-    rows = conn.execute("SELECT COUNT(*) AS n FROM schema_version WHERE version=2").fetchone()
+    rows = conn.execute("SELECT COUNT(*) AS n FROM schema_version WHERE version=3").fetchone()
     assert rows["n"] == 1
 
 
