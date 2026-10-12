@@ -271,9 +271,14 @@ def cmd_up(args: argparse.Namespace) -> int:
 
 
 def cmd_launch(args: argparse.Namespace) -> int:
-    """一键启动：等价于 fleet up --open --no-worker，小白双击图标即可。"""
+    """一键启动：等价于 fleet up --open（含 worker），小白双击图标即可。
+
+    修复（断链1）：曾硬编码 no_worker=True，与安装器 launcher.cmd 跑 `up --open`
+    的行为相悖——launch 入口启动后内核 todo 永远无人认领，「无需任何操作等待
+    实现和测试」不成立。launch 现在与 launcher.cmd 口径一致：api + worker。
+    """
     args.open = True
-    args.no_worker = True
+    args.no_worker = False
     if not hasattr(args, 'port'):
         args.port = DEFAULT_PORT
     return cmd_up(args)

@@ -65,7 +65,10 @@ onMounted(async () => {
     try {
       const { api } = await import('@/api/client')
       const qs = await api.quickstartStatus()
-      if (!qs.has_project && !qs.ok) {
+      // 修复（断链2）：曾写成 `!qs.has_project && !qs.ok`，而 quickstartStatus
+      // 成功时 ok 恒为 true → 条件永假，全新安装欢迎向导永不自动弹出。
+      // 首启判定只看 has_project。
+      if (!qs.has_project) {
         showWizard.value = true
       }
     } catch {
