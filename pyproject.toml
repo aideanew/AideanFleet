@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aideanfleet"
-version = "0.3.0"
+version = "0.4.0"
 description = "AideanFleet - 自研薄 Control Plane + 可插拔执行体的自动化执行器（控制台 / 调度 / 治理 / 可靠性守望）"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "Proprietary" }
 dependencies = [
     "fastapi>=0.110",
