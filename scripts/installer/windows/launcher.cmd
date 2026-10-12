@@ -10,6 +10,9 @@ if not exist "%PYTHON%" (
   exit /b 1
 )
 set FLEET_DATA_DIR=%LOCALAPPDATA%\AideanFleet\data
+rem N4: wheel 装进 site-packages 后 paths().root 缺 .env.example（ConfigError 链）。
+rem FLEET_ROOT 指回安装目录，配合 .iss 拷入的 .env.example 完成首启初始化。
+set FLEET_ROOT=%HERE%
 set PATH=%HERE%runtime\node;%HERE%npm-global;%PATH%
 "%PYTHON%" -m fleet.cli.main up --open %*
 if errorlevel 1 (

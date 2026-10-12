@@ -64,6 +64,16 @@ switch ($Target) {
     if ($LASTEXITCODE -ne 0) { throw "pytest failed" }
   }
   "installer" {
+    # 修复 N1：对齐 CI installer.yml——此前缺 sync/wheel/wheelhouse，
+    # 干净检出直接构建会产出缺 _migrations/_manifest.json 的坏 wheel
+    & $Python scripts/sync_migrations.py
+    if ($LASTEXITCODE -ne 0) { throw "sync_migrations failed" }
+    & $Python scripts/sync_migrations.py --check
+    if ($LASTEXITCODE -ne 0) { throw "sync_migrations --check failed" }
+    & $Python -m build --wheel
+    if ($LASTEXITCODE -ne 0) { throw "build wheel failed" }
+    & $Python -m pip download -q -d scripts/installer/windows/_wheelhouse .
+    if ($LASTEXITCODE -ne 0) { throw "pip download wheelhouse failed" }
     & $Python scripts/installer/windows/fetch_runtimes.py
     if ($LASTEXITCODE -ne 0) { throw "fetch_runtimes failed" }
     & iscc scripts\installer\windows\AideanFleet.iss

@@ -41,7 +41,11 @@ guard: ## 守门：契约一致 + 迁移同步 + 全量测试（CI 合并门）
 	@cd fleet/console/web && (command -v pnpm >/dev/null 2>&1 && pnpm run type-check || echo "  ⚠ pnpm 未安装，跳过 vue-tsc")
 
 .PHONY: installer
-installer: ## 构建 Windows 安装器（需 Inno Setup iscc）
+installer: ## 构建 Windows 安装器（需 Inno Setup iscc + venv 内 pip install build；序列对齐 CI installer.yml）
+	$(VENV_PYTHON) scripts/sync_migrations.py
+	$(VENV_PYTHON) scripts/sync_migrations.py --check
+	$(VENV_PYTHON) -m build --wheel
+	$(VENV_PYTHON) -m pip download -q -d scripts/installer/windows/_wheelhouse .
 	$(VENV_PYTHON) scripts/installer/windows/fetch_runtimes.py
 	iscc scripts/installer/windows/AideanFleet.iss
 

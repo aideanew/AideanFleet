@@ -38,6 +38,11 @@ Source: "{#RuntimeDir}\node-v22.20.0-win-x64.zip"; DestDir: "{app}\_packages"; F
 Source: "{#DistDir}\*"; DestDir: "{app}\fleet\console\dist"; Flags: ignoreversion recursesubdirs
 ; wheelhouse（AideanFleet wheel + 依赖 wheel，pip --no-index 安装）
 Source: "{#WheelhouseDir}\*.whl"; DestDir: "{app}\wheelhouse"; Flags: ignoreversion
+; 启动器（修复 N3：快捷方式/安装后自启引用 {app}\launcher.cmd，但 [Files] 从未拷贝 → 必然失效）
+Source: "launcher.cmd"; DestDir: "{app}"; Flags: ignoreversion
+; 配置模板（修复 N4：wheel 装进 site-packages 后 paths().root 下无 .env.example → ensure_env_file() 抛 ConfigError；
+; 配合 launcher.cmd 注入 FLEET_ROOT={app}，模板随装到 {app}\.env.example，首启即可复制出 .env）
+Source: "..\..\..\.env.example"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
 Name: "{app}\runtime\python"
@@ -76,24 +81,41 @@ begin
     NodeZip := ExpandConstant('{app}\_packages\node-v22.20.0-win-x64.zip');
     PythonDir := ExpandConstant('{app}\runtime\python');
     NodeDir := ExpandConstant('{app}\runtime\node');
-    Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    // 修复 N2：Exec 曾捕获 ResultCode 却从不判定——失败时安装器仍报“成功”，用户点快捷方式才炸
+    if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
       Format('-NoProfile -Command "Expand-Archive -Force ''%s'' ''%s''"', [PythonZip, PythonDir]),
-      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    begin
+      MsgBox('Python 运行时解压失败（退出码 ' + IntToStr(ResultCode) + '）。请重新运行安装器；若持续失败请联系支持。', mbError, MB_OK);
+      RaiseException('RUNTIME_EXTRACT_FAILED');
+    end;
+    if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
       Format('-NoProfile -Command "Expand-Archive -Force ''%s'' ''%s''"', [NodeZip, NodeDir]),
-      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    begin
+      MsgBox('Node 运行时解压失败（退出码 ' + IntToStr(ResultCode) + '）。请重新运行安装器。', mbError, MB_OK);
+      RaiseException('RUNTIME_EXTRACT_FAILED');
+    end;
     // Node zip 解出一层 node-vXX 目录，归位到 runtime\node 根
-    Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
       Format('-NoProfile -Command "$n = Get-ChildItem ''%s'' -Directory | Select-Object -First 1; if ($n -and $n.Name -like ''node-v*'') { Move-Item ''%s\*'' ''%s'' -Force; Remove-Item $n.FullName }"', [NodeDir, NodeDir + '\' + '$n', NodeDir]),
-      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    begin
+      MsgBox('Node 目录归位失败（退出码 ' + IntToStr(ResultCode) + '）。', mbError, MB_OK);
+      RaiseException('RUNTIME_EXTRACT_FAILED');
+    end;
   end;
   if CurStep = ssPostInstall then
   begin
-    // 离线安装 AideanFleet wheel + 依赖到私有 Python
-    Exec(ExpandConstant('{app}\runtime\python\python.exe'),
+    // 离线安装 AideanFleet wheel + 依赖到私有 Python（修复 N2：pip 失败曾被静默吞掉，wheelhouse 缺失也报“安装成功”）
+    if not Exec(ExpandConstant('{app}\runtime\python\python.exe'),
       Format('-m pip install --no-index --find-links "%s" aideanfleet',
              [ExpandConstant('{app}\wheelhouse')]),
-      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    begin
+      MsgBox('核心组件安装失败（pip 退出码 ' + IntToStr(ResultCode) + '）。请重新运行安装器；若持续失败请检查安装包完整性。', mbError, MB_OK);
+      RaiseException('PIP_INSTALL_FAILED');
+    end;
   end;
 end;
 
