@@ -404,3 +404,180 @@ def sys_platform() -> str:
     import sys
 
     return sys.platform
+
+
+# ---------------------------------------------------------------------------
+# 跨平台 Node.js 自动安装（零基础用户体验增强）
+# ---------------------------------------------------------------------------
+
+
+def _platform_key() -> str:
+    """返回当前平台的 manifest URL 键名，如 urls_linux_x64。"""
+    import sys
+    import platform as _pf
+    mach = _pf.machine().lower()
+    if sys.platform == "linux":
+        arch = "arm64" if mach in ("aarch64", "arm64") else "x64"
+        return f"urls_linux_{arch}"
+    if sys.platform == "darwin":
+        arch = "arm64" if mach in ("arm64", "aarch64") else "x64"
+        return f"urls_macos_{arch}"
+    return ""
+
+
+def _download_file(url: str, dest: Path, timeout: int = 120) -> bool:
+    """下载文件到指定路径，支持重定向。"""
+    import urllib.request
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "AideanFleet-Setup/1.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as fh:
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                fh.write(chunk)
+        return True
+    except Exception:
+        return False
+
+
+def _extract_tarball(archive: Path, dest_dir: Path) -> bool:
+    """解压 .tar.xz / .tar.gz 到目标目录。"""
+    import tarfile
+    try:
+        with tarfile.open(archive, mode="r:*") as tar:
+            tar.extractall(dest_dir)
+        return True
+    except Exception:
+        return False
+
+
+def install_node_binary(*, mirror: str = "auto") -> tuple[bool, str]:
+    """在 Linux/macOS 上下载并安装 Node.js 到私有运行时目录。
+
+    返回 (success, message)。
+    Windows 走 Inno Setup 安装器，不调用此函数。
+    """
+    if os.name == "nt":
+        return False, "Windows 请使用 Inno Setup 安装器"
+
+    manifest = load_manifest()
+    node_entry = None
+    for comp in manifest.get("components", []):
+        if comp["name"] == "node":
+            node_entry = comp
+            break
+    if not node_entry:
+        return False, "manifest 中无 node 组件"
+
+    plat_key = _platform_key()
+    if not plat_key:
+        return False, f"不支持的平台: {sys_platform()}"
+
+    urls = node_entry.get(plat_key, {})
+    official = urls.get("official", "")
+    cn = urls.get("cn", "")
+    if not official:
+        return False, f"无 {plat_key} 下载 URL"
+
+    # mirror 选择
+    if mirror == "cn":
+        url_list = [cn, official] if cn else [official]
+    elif mirror == "official":
+        url_list = [official]
+    else:  # auto
+        url_list = [official, cn] if cn else [official]
+
+    rt_dir = runtime_dir()
+    node_dir = rt_dir / "node"
+    node_dir.mkdir(parents=True, exist_ok=True)
+    tmp_dir = rt_dir / "tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    import tempfile
+    for url in url_list:
+        if not url:
+            continue
+        filename = url.rsplit("/", 1)[-1]
+        archive = tmp_dir / filename
+        if not _download_file(url, archive):
+            continue
+        # 解压到临时目录，然后移动 node-v* 子目录内容到 node_dir
+        extract_tmp = tmp_dir / "extract"
+        extract_tmp.mkdir(parents=True, exist_ok=True)
+        if not _extract_tarball(archive, extract_tmp):
+            continue
+        # 找到解压后的 node-v* 目录
+        node_root = None
+        for child in extract_tmp.iterdir():
+            if child.is_dir() and child.name.startswith("node-v"):
+                node_root = child
+                break
+        if not node_root:
+            continue
+        # 清空旧 node_dir 内容并复制新的
+        for old in node_dir.iterdir():
+            if old.is_dir():
+                import shutil
+                shutil.rmtree(old, ignore_errors=True)
+            else:
+                old.unlink(missing_ok=True)
+        for item in node_root.iterdir():
+            import shutil
+            shutil.move(str(item), str(node_dir / item.name))
+        # 清理临时文件
+        archive.unlink(missing_ok=True)
+        import shutil
+        shutil.rmtree(extract_tmp, ignore_errors=True)
+
+        # 验证安装
+        node_bin = node_dir / "bin" / "node"
+        if node_bin.is_file():
+            version = _probe_version([str(node_bin), "--version"])
+            if version:
+                return True, f"Node.js {version} 已安装到 {node_dir}"
+        return False, f"下载解压成功但 node 二进制不可用: {node_dir}"
+
+    return False, "所有下载源均失败"
+
+
+def ensure_node_available() -> bool:
+    """检查 Node.js 是否可用（系统 PATH 或私有目录），不可用则尝试安装。
+
+    供 fleet init / fleet up 在启动前调用。
+    """
+    # 1) 系统 PATH
+    if shutil_which("node"):
+        return True
+    # 2) 私有目录
+    node_dir = runtime_dir() / "node"
+    if os.name == "nt":
+        if (node_dir / "node.exe").is_file():
+            return True
+    else:
+        if (node_dir / "bin" / "node").is_file():
+            return True
+    return False
+
+
+def private_node_path() -> str | None:
+    """返回私有 Node 的 node 可执行文件路径，不存在返回 None。"""
+    node_dir = runtime_dir() / "node"
+    if os.name == "nt":
+        exe = node_dir / "node.exe"
+        return str(exe) if exe.is_file() else None
+    else:
+        exe = node_dir / "bin" / "node"
+        return str(exe) if exe.is_file() else None
+
+
+def private_npm_path() -> str | None:
+    """返回私有 npm 路径（优先 _private_npm 逻辑，补充 Linux/macOS）。"""
+    existing = _private_npm()
+    if existing:
+        return existing
+    node_dir = runtime_dir() / "node"
+    npm_bin = node_dir / "bin" / "npm"
+    if npm_bin.is_file():
+        return str(npm_bin)
+    return None

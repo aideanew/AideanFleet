@@ -1,7 +1,7 @@
 {
   "version": 1,
   "note": "AideanFleet 零基础安装组件清单（DESIGN-001 唯一源）。sha256 为构建期校验值；CLI 包名以 npm 官方为准，registry 失败自动切国内镜像（REQ-NF-05）。",
-  "runtimes_dir_note": "Python embeddable 与 Node zip 由 fetch_runtimes.py 在构建期下载校验后内置进 exe；用户机器安装运行时不联网（A-14）。",
+  "runtimes_dir_note": "Python embeddable 与 Node zip 由 fetch_runtimes.py 在构建期下载校验后内置进 exe；用户机器安装运行时不联网（A-14）。Linux/macOS 通过 download_binary 类型在线安装 Node.js。",
   "components": [
     {
       "name": "python",
@@ -28,6 +28,22 @@
       "urls": {
         "official": "https://nodejs.org/dist/v22.20.0/node-v22.20.0-win-x64.zip",
         "cn": "https://registry.npmmirror.com/-/binary/node/v22.20.0/node-v22.20.0-win-x64.zip"
+      },
+      "urls_linux_x64": {
+        "official": "https://nodejs.org/dist/v22.20.0/node-v22.20.0-linux-x64.tar.xz",
+        "cn": "https://registry.npmmirror.com/-/binary/node/v22.20.0/node-v22.20.0-linux-x64.tar.xz"
+      },
+      "urls_linux_arm64": {
+        "official": "https://nodejs.org/dist/v22.20.0/node-v22.20.0-linux-arm64.tar.xz",
+        "cn": "https://registry.npmmirror.com/-/binary/node/v22.20.0/node-v22.20.0-linux-arm64.tar.xz"
+      },
+      "urls_macos_x64": {
+        "official": "https://nodejs.org/dist/v22.20.0/node-v22.20.0-darwin-x64.tar.xz",
+        "cn": "https://registry.npmmirror.com/-/binary/node/v22.20.0/node-v22.20.0-darwin-x64.tar.xz"
+      },
+      "urls_macos_arm64": {
+        "official": "https://nodejs.org/dist/v22.20.0/node-v22.20.0-darwin-arm64.tar.xz",
+        "cn": "https://registry.npmmirror.com/-/binary/node/v22.20.0/node-v22.20.0-darwin-arm64.tar.xz"
       },
       "sha256": "bb819d6eb8f5bfda294bbc83a7e4ec6539da67c4233d54b0d655b9248b15e29d"
     },

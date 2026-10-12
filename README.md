@@ -22,10 +22,12 @@ Harness Profiles（claude/codex/opencode 声明式 YAML）+ Model Router（OpenA
 ## 快速开始
 
 ```bash
-pip install -e .
+pip install -e ".[dev]"
 fleet init        # 向导：扫描已装 CLI、探测模型 key、生成 fleet.toml
+                   #   Node.js 缺失时提示一键安装（Linux/macOS 自动下载）
 fleet doctor      # 执行体/配置体检（--config 查看生效值与来源）
 fleet up          # 拉起 api(控制台 :3100) + worker，日志在 data/logs/
+fleet down        # 停止 fleet up 拉起的进程
 fleet run         # 旧交互式启动（兼容保留）
 ```
 

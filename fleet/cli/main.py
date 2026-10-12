@@ -24,6 +24,7 @@ from pathlib import Path
 from fleet.core.paths import paths
 
 from fleet.core.ports import DEFAULT_CONSOLE_PORT
+from fleet.cli.pidutil import write_pidfile, read_pidfile, stop_fleet, pidfile_path
 
 DEFAULT_PORT = DEFAULT_CONSOLE_PORT
 
@@ -53,6 +54,30 @@ def cmd_init(args: argparse.Namespace) -> int:
     from fleet.core import fleet_toml
 
     root = paths().root
+    # 零基础体验：检测 Node.js，缺失时提示安装
+    try:
+        from fleet.setup import core as _setup_core
+        if not _setup_core.ensure_node_available():
+            print("== ⚠ Node.js 未检测到 ==")
+            print("  Node.js >= 20 是安装 CLI 执行体（claude/codex/opencode 等）的前置依赖。")
+            if os.name != "nt":
+                print("  输入 yes 自动下载安装 Node.js 到私有目录，或按回车跳过：")
+                try:
+                    choice = input("  自动安装 Node.js? [yes/no] ").strip().lower()
+                except EOFError:
+                    choice = "no"
+                if choice in ("yes", "y", "是"):
+                    ok, msg = _setup_core.install_node_binary()
+                    print(f"  {'✓' if ok else '✗'} {msg}")
+                else:
+                    print("  跳过。后续可用 `fleet setup install node` 或手动安装。")
+            else:
+                print("  Windows 用户请运行安装器（Inno Setup），或手动安装 Node.js >= 20。")
+        else:
+            print("✓ Node.js 已就绪")
+    except Exception as _e:
+        pass  # 不阻塞 init 流程
+
     target = root / fleet_toml.CONFIG_NAME
     if target.exists() and not args.force:
         print(f"✓ {fleet_toml.CONFIG_NAME} 已存在（--force 覆盖）：{target}")
@@ -188,16 +213,18 @@ def cmd_up(args: argparse.Namespace) -> int:
     _configure_stdio()
     port = args.port
     creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+    _api_pid = None
     if _port_open(port):
         print(f"⚠ 端口 {port} 已被占用——复用既有控制台（若非 Fleet 实例请换 --port）")
     else:
         api_log = open(_log_file("api"), "ab")
         print(f"→ 启动 api（控制台 :{port}），日志: {_log_file('api')}")
-        subprocess.Popen(
+        _api_proc = subprocess.Popen(
             [sys.executable, "-m", "fleet.console.server"],
             cwd=str(paths().root), env={**os.environ, "FLEET_CONSOLE_PORT": str(port)},
             stdout=api_log, stderr=subprocess.STDOUT, creationflags=creationflags,
         )
+        _api_pid = _api_proc.pid
     ready = _wait_healthy(port)
     if not ready:
         print(f"✗ 控制台在 20s 内未就绪；最后日志：")
@@ -223,18 +250,43 @@ def cmd_up(args: argparse.Namespace) -> int:
     if not args.no_worker:
         worker_log = open(_log_file("worker"), "ab")
         print(f"→ 启动 worker，日志: {_log_file('worker')}")
-        subprocess.Popen(
+        _worker_proc = subprocess.Popen(
             [sys.executable, "-m", "fleet.cli.main", "worker", "--loop"],
             cwd=str(paths().root),
             stdout=worker_log, stderr=subprocess.STDOUT, creationflags=creationflags,
         )
         print("✓ worker 已启动（单写者内核：kernel.db）")
-    print("\n完成。Ctrl+C 退出本进程不会停掉后台服务；fleet run 可进入旧交互流程。")
+        write_pidfile({"api": _api_pid, "worker": _worker_proc.pid, "port": port,
+                       "started": time.strftime("%Y-%m-%dT%H:%M:%S")})
+    else:
+        write_pidfile({"api": _api_pid, "worker": None, "port": port,
+                       "started": time.strftime("%Y-%m-%dT%H:%M:%S")})
+    print("\n完成。fleet down 可停止后台服务；Ctrl+C 退出本进程不会停掉后台服务。")
     try:
         while True:
             time.sleep(3600)
     except KeyboardInterrupt:
         print("\nbye")
+    return 0
+
+
+def cmd_down(args: argparse.Namespace) -> int:
+    """停止 fleet up 拉起的 api + worker 进程。"""
+    _configure_stdio()
+    result = stop_fleet()
+    if result.get("stopped"):
+        details = result.get("details", {})
+        for key in ("api", "worker"):
+            d = details.get(key, {})
+            pid = d.get("pid")
+            if pid:
+                status = "✓ 已停止" if d.get("stopped") else "✗ 停止失败"
+                print(f"  {status} {key} (pid={pid})")
+            else:
+                print(f"  · {key}: 未运行")
+        print("✓ fleet 已停止")
+    else:
+        print(f"✗ {result.get('reason', '停止失败')}")
     return 0
 
 
@@ -358,6 +410,15 @@ def cmd_writeback(args: argparse.Namespace) -> int:
                 },
             )
         else:
+            # O-01 修复：exec todo 无 verify 命令时，不接受任意文本作为证据；
+            # 必须提供真实证据文件路径（已读取为内容）或由机器门产生证据。
+            if not todo["verify"] and not evidence:
+                print(json.dumps({
+                    "ok": False,
+                    "error": "exec todo 无 verify 命令，必须提供 --evidence 指向真实证据文件",
+                    "reason": "EVIDENCE_REQUIRED",
+                }, ensure_ascii=False))
+                return 1
             result = TurnResult(
                 verdict="done",
                 note=args.note or "",
@@ -442,6 +503,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_up.add_argument("--open", action="store_true", help="就绪后自动打开浏览器（未就绪进 /setup）")
     p_up.add_argument("--no-worker", action="store_true", help="只起控制台")
     p_up.set_defaults(func=cmd_up)
+
+    p_down = sub.add_parser("down", help="停止 fleet up 拉起的 api + worker")
+    p_down.set_defaults(func=cmd_down)
 
     p_worker = sub.add_parser("worker", help="kernel 侧 worker")
     p_worker.add_argument("--loop", action="store_true", help="常驻循环")

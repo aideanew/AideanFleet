@@ -14,7 +14,7 @@ ALLOWED_ENTRIES = {
     # 目录（源码/契约/配置）
     ".github", "config", "database", "docs", "fleet", "packages", "scripts", "tests", "tests-e2e",
     # 根文件
-    ".env.example", ".gitignore", "AGENTS.md", "Makefile", "make.ps1",
+    ".env.example", ".gitignore", ".gitattributes", "AGENTS.md", "Makefile", "make.ps1",
     "README.md", "pyproject.toml", "requirements.txt", "run_interactive.py",
     # 运行时/本地产物（豁免，不入库也不算污染）
     ".git", ".venv", ".pytest_cache", "__pycache__", "build", "dist", "data",
