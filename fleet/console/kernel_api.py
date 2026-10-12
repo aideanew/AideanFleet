@@ -143,13 +143,16 @@ async def goals_create(request: Request):
             return _error("WORKSPACE_NOT_ALLOWED", "未配置 allowed_roots，无法推导工作区", 422)
         workspace = str(Path(roots[0]) / _slug(title))
 
-    # SETUP_INCOMPLETE：规划模型一个候选都不可用 → 引导去 /setup（先于 workspace 细节校验）
+    # SETUP_INCOMPLETE 三态（P1.4）：无模型/缺密钥/未绑定 → 409 带 hint 引导去 /setup
+    # （先于 workspace 细节校验；details.hint 纯增量，旧前端读 reason/error 不受影响）
     try:
-        from fleet.cli.clients import planner_ready
+        from fleet.cli.clients import planner_status
 
-        if not planner_ready():
-            return _error("SETUP_INCOMPLETE",
-                          "还没有可用的规划模型：请先到 /setup 填模型密钥", 409)
+        status = planner_status()
+        if not status["ready"]:
+            return _error("SETUP_INCOMPLETE", status["message"], 409,
+                          {"hint": {"state": status["state"],
+                                    "missing_keys": status["missing_keys"]}})
     except Exception:
         pass
 

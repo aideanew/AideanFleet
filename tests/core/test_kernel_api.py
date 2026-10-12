@@ -77,6 +77,38 @@ def test_goals_create_setup_incomplete(client, monkeypatch):
     response = client.post("/api/kernel/goals", json={
         "title": "x", "requirements": "y", "workspace": "E:/Demo/Calc"})
     assert response.status_code == 409 and response.json()["reason"] == "SETUP_INCOMPLETE"
+    # P1.4 三态：有模型缺密钥 → no_key + 待填 env 名
+    hint = response.json()["details"]["hint"]
+    assert hint["state"] == "no_key"
+    assert hint["missing_keys"] == ["FAKE_PLANNER_KEY"]
+
+
+def test_goals_create_setup_incomplete_no_model(client, fleet_env, monkeypatch):
+    """P1.4 三态：模型全无（toml 清空、.env 池无 planner 绑定）→ no_model 引导去设置。"""
+    monkeypatch.delenv("FAKE_PLANNER_KEY", raising=False)
+    (fleet_env["root"] / "fleet.toml").write_text("[workspace]\n", encoding="utf-8")
+    response = client.post("/api/kernel/goals", json={
+        "title": "x", "requirements": "y", "workspace": "E:/Demo/Calc"})
+    assert response.status_code == 409, response.text
+    hint = response.json()["details"]["hint"]
+    assert hint["state"] == "no_model" and hint["missing_keys"] == []
+
+
+def test_goals_create_setup_incomplete_no_binding(client, fleet_env, monkeypatch):
+    """P1.4 三态：toml 有模型但规划角色未绑定（手写 toml 可达）→ no_binding 防御态。"""
+    monkeypatch.delenv("FAKE_PLANNER_KEY", raising=False)
+    (fleet_env["root"] / "fleet.toml").write_text(
+        '[models.solo]\n'
+        'base_url = "http://127.0.0.1:9/v1"\n'
+        'model_id = "solo-1"\n'
+        'api_key_env = "SOLO_KEY"\n',
+        encoding="utf-8",
+    )
+    response = client.post("/api/kernel/goals", json={
+        "title": "x", "requirements": "y", "workspace": "E:/Demo/Calc"})
+    assert response.status_code == 409, response.text
+    hint = response.json()["details"]["hint"]
+    assert hint["state"] == "no_binding" and hint["missing_keys"] == []
 
 
 def test_goals_list_paginated(client):

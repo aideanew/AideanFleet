@@ -91,10 +91,41 @@ def model_for(role: str) -> str:
     return candidate.model_id if candidate.key_present() else ""
 
 
-def planner_ready(role: str = "planner") -> bool:
-    """SETUP_INCOMPLETE 判定：规划角色是否有可用模型（fleet.toml 候选需 key，env 池同理）。"""
+def planner_status(role: str = "planner") -> dict:
+    """SETUP_INCOMPLETE 三态判定（P1.4）：goals.create 409 hint 的单源。
+
+    返回 {"ready": bool, "state": str, "missing_keys": list, "message": str}：
+    - ready：有可用候选（密钥就绪，P1.2 热更新口径）；
+    - no_model：toml 与旧 .env 池均无模型 → 引导去设置第 2 步添加模型；
+    - no_key：有候选但密钥未填 → 列出待填的 env 名；
+    - no_binding：toml 有模型但规划角色未绑定（P1.1 保底后不应出现，防御态）。
+    """
     chain = model_chain(role)
-    return any(c.key_present() and c.base_url for c in chain)
+    if any(c.key_present() and c.base_url for c in chain):
+        return {"ready": True, "state": "ready", "missing_keys": [], "message": ""}
+    if chain:
+        missing = sorted({c.api_key_env for c in chain
+                          if c.api_key_env and not c.key_present()})
+        if missing:
+            return {"ready": False, "state": "no_key", "missing_keys": missing,
+                    "message": f"模型已配置但密钥未填：请到设置填写 {'、'.join(missing)}"}
+        return {"ready": False, "state": "no_key", "missing_keys": [],
+                "message": "模型候选缺少可用地址，请检查设置里的模型配置"}
+    # 链为空：区分"没模型"与"有模型没绑定"
+    try:
+        cfg = fleet_toml.load_config()
+        if cfg.models and not (cfg.roles.get(role) and cfg.roles[role].models):
+            return {"ready": False, "state": "no_binding", "missing_keys": [],
+                    "message": "规划角色未绑定模型：请到设置重新保存模型配置"}
+    except Exception:
+        pass
+    return {"ready": False, "state": "no_model", "missing_keys": [],
+            "message": "还没有配置任何模型：请到设置第 2 步添加规划模型"}
+
+
+def planner_ready(role: str = "planner") -> bool:
+    """SETUP_INCOMPLETE 判定（布尔兼容版）：三态细节见 planner_status。"""
+    return planner_status(role)["ready"]
 
 
 def make_planner_client(role: str = "planner",
