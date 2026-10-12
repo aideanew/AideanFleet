@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "note": "AideanFleet 零基础安装组件清单（DESIGN-001 唯一源）。sha256 为构建期校验值；CLI 包名以 npm 官方为准，registry 失败自动切国内镜像（REQ-NF-05）。",
+  "runtimes_dir_note": "Python embeddable 与 Node zip 由 fetch_runtimes.py 在构建期下载校验后内置进 exe；用户机器安装运行时不联网（A-14）。",
+  "components": [
+    {
+      "name": "python",
+      "kind": "runtime",
+      "min_version": "3.10",
+      "version": "3.11.9",
+      "detect": [["python", "--version"]],
+      "default": true,
+      "install": { "type": "bundled_zip", "artifact": "python-3.11.9-embed-amd64.zip" },
+      "urls": {
+        "official": "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip",
+        "cn": "https://registry.npmmirror.com/-/binary/python/3.11.9/python-3.11.9-embed-amd64.zip"
+      },
+      "sha256": "009d6bf7e3b2ddca3d784fa09f90fe54336d5b60f0e0f305c37f400bf83cfd3b"
+    },
+    {
+      "name": "node",
+      "kind": "runtime",
+      "min_version": "20",
+      "version": "22.20.0",
+      "detect": [["node", "--version"]],
+      "default": true,
+      "install": { "type": "bundled_zip", "artifact": "node-v22.20.0-win-x64.zip" },
+      "urls": {
+        "official": "https://nodejs.org/dist/v22.20.0/node-v22.20.0-win-x64.zip",
+        "cn": "https://registry.npmmirror.com/-/binary/node/v22.20.0/node-v22.20.0-win-x64.zip"
+      },
+      "sha256": "bb819d6eb8f5bfda294bbc83a7e4ec6539da67c4233d54b0d655b9248b15e29d"
+    },
+    {
+      "name": "npm",
+      "kind": "runtime",
+      "min_version": "10",
+      "version": "10.9.3",
+      "detect": [["npm", "--version"]],
+      "default": true,
+      "install": { "type": "bundled_with_node" },
+      "urls": { "official": "随 Node LTS 内置" },
+      "sha256": ""
+    },
+    {
+      "name": "git",
+      "kind": "runtime",
+      "min_version": "2.30",
+      "version": "",
+      "detect": [["git", "--version"]],
+      "default": false,
+      "install": { "type": "manual", "hint": "https://git-scm.com/download/win （执行体在工作区内做版本控制时需要；缺失仅降级提示，不阻塞）" },
+      "urls": { "official": "https://git-scm.com/download/win" },
+      "sha256": ""
+    },
+    {
+      "name": "claude",
+      "kind": "cli",
+      "min_version": "1.0.0",
+      "detect": [["claude", "--version"]],
+      "default": true,
+      "install": { "type": "npm", "package": "@anthropic-ai/claude-code" },
+      "urls": {
+        "registry": "https://registry.npmjs.org",
+        "registry_cn": "https://registry.npmmirror.com"
+      }
+    },
+    {
+      "name": "codex",
+      "kind": "cli",
+      "min_version": "0.1.0",
+      "detect": [["codex", "--version"]],
+      "default": true,
+      "install": { "type": "npm", "package": "@openai/codex" },
+      "urls": {
+        "registry": "https://registry.npmjs.org",
+        "registry_cn": "https://registry.npmmirror.com"
+      }
+    },
+    {
+      "name": "opencode",
+      "kind": "cli",
+      "min_version": "0.1.0",
+      "detect": [["opencode", "--version"]],
+      "default": true,
+      "install": { "type": "npm", "package": "opencode-ai" },
+      "urls": {
+        "registry": "https://registry.npmjs.org",
+        "registry_cn": "https://registry.npmmirror.com"
+      }
+    },
+    {
+      "name": "gemini",
+      "kind": "cli",
+      "min_version": "0.1.0",
+      "detect": [["gemini", "--version"]],
+      "default": true,
+      "install": { "type": "npm", "package": "@google/gemini-cli" },
+      "urls": {
+        "registry": "https://registry.npmjs.org",
+        "registry_cn": "https://registry.npmmirror.com"
+      }
+    },
+    {
+      "name": "cline",
+      "kind": "cli",
+      "min_version": "0.1.0",
+      "detect": [["cline", "--version"]],
+      "default": true,
+      "install": { "type": "npm", "package": "cline" },
+      "urls": {
+        "registry": "https://registry.npmjs.org",
+        "registry_cn": "https://registry.npmmirror.com"
+      }
+    },
+    {
+      "name": "grok",
+      "kind": "cli",
+      "min_version": "0.1.0",
+      "detect": [["grok", "--version"]],
+      "default": false,
+      "install": { "type": "official_script", "note": "官方安装器：irm https://x.ai/cli/install.ps1 | iex；默认不装（A-10），向导勾选后引导用户手动执行（供应链口径 MN-02）" },
+      "urls": { "official": "https://x.ai/cli/install.ps1" }
+    }
+  ]
+}

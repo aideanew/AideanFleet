@@ -1,0 +1,52 @@
+{
+  "$id": "errors.json",
+  "title": "错误契约",
+  "$defs": {
+    "ErrorBody": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ok","error","reason"],
+      "properties": {
+        "ok": {"const": false},
+        "error": {"type": "string", "description": "给人看的中文一句话，可直接展示；不得含路径之外的内部栈、不得含密钥"},
+        "reason": {"$ref": "#/$defs/ErrorCode"},
+        "details": {"type": "object", "description": "可选：字段级错误 {field: message} 或 {job_id, component}"},
+        "retryable": {"type": "boolean", "default": false}
+      }
+    },
+    "ErrorCode": {"enum": [
+      "UNAUTHORIZED","FORBIDDEN_NON_LOOPBACK","VALIDATION_FAILED","NOT_FOUND",
+      "GOAL_NOT_FOUND","TODO_NOT_FOUND","JOB_NOT_FOUND","MODEL_NOT_FOUND","HARNESS_NOT_FOUND",
+      "ILLEGAL_TRANSITION","DECISION_ALREADY_MADE","WORKSPACE_NOT_ALLOWED",
+      "SETUP_INCOMPLETE","INSTALL_IN_PROGRESS","PLATFORM_UNSUPPORTED","HARNESS_NOT_INSTALLED",
+      "SECRET_NAME_NOT_DECLARED","SECRET_MISSING","PLAINTEXT_SECRET",
+      "IDEMPOTENCY_CONFLICT","INTERNAL"
+    ]},
+    "InstallStepErrorCode": {"description": "setup.job steps[].error_code", "enum": [
+      "DOWNLOAD_FAILED","CHECKSUM_MISMATCH","NETWORK_BLOCKED","DISK_FULL","PERMISSION_DENIED",
+      "NPM_INSTALL_FAILED","VERSION_TOO_OLD","POST_INSTALL_NOT_ON_PATH","UNSUPPORTED_ARCH"
+    ]}
+  },
+  "http_mapping": {
+    "UNAUTHORIZED": 401, "FORBIDDEN_NON_LOOPBACK": 403, "VALIDATION_FAILED": 422, "NOT_FOUND": 404,
+    "GOAL_NOT_FOUND": 404, "TODO_NOT_FOUND": 404, "JOB_NOT_FOUND": 404, "MODEL_NOT_FOUND": 404, "HARNESS_NOT_FOUND": 404,
+    "ILLEGAL_TRANSITION": 409, "DECISION_ALREADY_MADE": 409, "WORKSPACE_NOT_ALLOWED": 422,
+    "SETUP_INCOMPLETE": 409, "INSTALL_IN_PROGRESS": 409, "PLATFORM_UNSUPPORTED": 422, "HARNESS_NOT_INSTALLED": 409,
+    "SECRET_NAME_NOT_DECLARED": 422, "SECRET_MISSING": 409, "PLAINTEXT_SECRET": 422,
+    "IDEMPOTENCY_CONFLICT": 409, "INTERNAL": 500
+  },
+  "kernel_exception_mapping": {
+    "KeyError（todo/goal 不存在）": "TODO_NOT_FOUND | GOAL_NOT_FOUND",
+    "KernelError（状态不允许）": "ILLEGAL_TRANSITION",
+    "PlanValidationError": "不经 HTTP 暴露，转为 todo successor/needs_user（契约 docs/契约.md §1）"
+  },
+  "frontend_display": {
+    "401": "跳转解锁页，保留当前路由",
+    "403": "整页提示：只能在本机浏览器打开控制台",
+    "404": "就地空态 + 返回按钮",
+    "409": "toast 展示 error，并刷新该资源",
+    "422": "表单字段下方展示 details[field]；无 details 时 toast",
+    "500": "toast『出错了，已记录日志』+ 打开日志目录按钮（data/logs）",
+    "retryable=true": "展示『重试』按钮"
+  },
+  "compat_note": "现有接口已返回 {ok:false,error,reason}，reason 现为小写自由文本（如 unauthorized）。TASK-103 起新接口用本枚举；旧接口 reason 不改，前端按 HTTP 码兜底（NON_BLOCKING 假设 A-03）。"
+}

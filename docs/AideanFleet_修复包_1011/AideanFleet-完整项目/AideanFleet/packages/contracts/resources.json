@@ -1,0 +1,53 @@
+{
+ "$id": "resources.json",
+ "title": "资源契约（文件/证据/日志/运行时）",
+ "roots": {
+  "repo_root": "paths().root（现状）",
+  "data_dir": "开发模式 <repo_root>/data（现状）；安装版 %LOCALAPPDATA%/AideanFleet/data，经 FLEET_DATA_DIR 指定，卸载默认保留（A-05）",
+  "runtime_dir": "Windows: %LOCALAPPDATA%/Programs/AideanFleet（安装器 exe 按用户安装，内含 python/、node/、npm-global/；U-02 已裁决）；Linux/macOS: COULD，未规划",
+  "secrets_file": "<data_dir>/../secrets/.env（现状 server 已读 secrets/.env；路径以 TASK-301 实测为准）"
+ },
+ "$defs": {
+  "EvidenceRef": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "name",
+    "kind",
+    "size",
+    "url"
+   ],
+   "properties": {
+    "name": {
+     "enum": [
+      "gate.json",
+      "harness_output.txt",
+      "writeback_note.txt"
+     ]
+    },
+    "kind": {
+     "enum": [
+      "gate",
+      "harness_output",
+      "host_note"
+     ]
+    },
+    "size": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "url": {
+     "type": "string",
+     "description": "/api/kernel/todos/{todo_id}/evidence/{name}"
+    }
+   }
+  }
+ },
+ "rules": [
+  "证据路径：<data_dir>/evidence/<todo_id>/{gate.json,harness_output.txt}（已确认 runner/worker.py _evidence_dir + gates.save_evidence）",
+  "证据只读下载：GET /api/kernel/todos/{todo_id}/evidence/{name}，name 必须在枚举内（防路径穿越），需 owner 会话",
+  "日志：<data_dir>/logs/{api,worker}-YYYYMMDD.log（已确认 cli/main.py _log_file），不经 HTTP 暴露全文，仅 setup.job.log_tail ≤4000 字符",
+  "生命周期：evidence 保留至 todo 所属 goal 删除（当前无删除接口 → 永久保留，NON_BLOCKING 假设 A-06）；logs 保留 14 天（新增清理，COULD）",
+  "上传：无。系统不接收用户上传文件（MUST NOT）"
+ ]
+}

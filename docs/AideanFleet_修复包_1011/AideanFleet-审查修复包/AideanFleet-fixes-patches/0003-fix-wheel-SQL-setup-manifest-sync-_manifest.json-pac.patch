@@ -1,0 +1,116 @@
+From 32dd86b68d9be96115f958bca7ee2a8aaafa6526 Mon Sep 17 00:00:00 2001
+From: Hark Audit <audit@local>
+Date: Sun, 11 Oct 2026 14:30:57 +0000
+Subject: [PATCH 03/11] =?UTF-8?q?[fix]=20wheel=20=E7=BC=BA=E8=BF=81?=
+ =?UTF-8?q?=E7=A7=BB=20SQL=20=E4=B8=8E=20setup=20manifest=EF=BC=9Async=20?=
+ =?UTF-8?q?=E8=84=9A=E6=9C=AC=E5=90=8C=E6=AD=A5=20=5Fmanifest.json?=
+ =?UTF-8?q?=EF=BC=8Cpackage-data=20=E6=94=B6=E5=BD=95=EF=BC=8CCI=20wheel/?=
+ =?UTF-8?q?=E5=AE=89=E8=A3=85=E5=99=A8=E6=9E=84=E5=BB=BA=E5=89=8D=E5=85=88?=
+ =?UTF-8?q?=20sync=20=E5=B9=B6=E6=96=AD=E8=A8=80?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .github/workflows/installer.yml |  2 ++
+ .github/workflows/tests.yml     |  3 +++
+ .gitignore                      |  1 +
+ pyproject.toml                  |  1 +
+ scripts/sync_migrations.py      | 13 +++++++++++++
+ 5 files changed, 20 insertions(+)
+
+diff --git a/.github/workflows/installer.yml b/.github/workflows/installer.yml
+index 8ff9a63..5464246 100644
+--- a/.github/workflows/installer.yml
++++ b/.github/workflows/installer.yml
+@@ -33,6 +33,8 @@ jobs:
+ 
+       - name: Build AideanFleet wheel + wheelhouse
+         run: |
++          python scripts/sync_migrations.py
++          python scripts/sync_migrations.py --check
+           python -m build --wheel
+           python -m pip download -q -d scripts/installer/windows/_wheelhouse .
+ 
+diff --git a/.github/workflows/tests.yml b/.github/workflows/tests.yml
+index 8375474..bbcfa86 100644
+--- a/.github/workflows/tests.yml
++++ b/.github/workflows/tests.yml
+@@ -87,9 +87,12 @@ jobs:
+       - name: Build wheel
+         run: |
+           python -m pip install --upgrade pip build
++          python scripts/sync_migrations.py
++          python scripts/sync_migrations.py --check
+           python -m build --wheel
+           python -m pip install dist/*.whl
+           python -c "from importlib.resources import files; p = files('fleet.console').joinpath('dist/index.html'); assert p.is_file(), 'wheel 缺少前端 dist'"
++          python -c "from importlib.resources import files; assert files('fleet.kernel').joinpath('_migrations/002_goal_requirements_plan_decision.sql').is_file(), 'wheel 缺迁移 SQL'; assert files('fleet.setup').joinpath('_manifest.json').is_file(), 'wheel 缺 setup manifest'"
+           echo "wheel 校验通过：dist 已打进包内"
+ 
+       - uses: actions/upload-artifact@v4
+diff --git a/.gitignore b/.gitignore
+index bcd8eed..dbb3fde 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -34,6 +34,7 @@ scripts/installer/windows/_wheelhouse/
+ dist-installer/
+ # 迁移打包副本（生成物，唯一源在 database/migrations）
+ fleet/kernel/_migrations/
++fleet/setup/_manifest.json
+ # 规划包（外部交付物，按 U-01=B 只入库 packages/contracts 与 database/migrations）
+ docs/AideanFleet-规划包*/
+ dist-mock/
+diff --git a/pyproject.toml b/pyproject.toml
+index cba9b33..63ced39 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -29,6 +29,7 @@ packages = { find = { include = ["fleet*"] } }
+ "fleet.prompts" = ["*.md"]
+ "fleet.harness" = ["profiles/*.yaml"]
+ "fleet.kernel" = ["_migrations/*.sql"]
++"fleet.setup" = ["_manifest.json"]
+ 
+ [tool.pytest.ini_options]
+ pythonpath = ["."]
+diff --git a/scripts/sync_migrations.py b/scripts/sync_migrations.py
+index 9884032..c4968c0 100644
+--- a/scripts/sync_migrations.py
++++ b/scripts/sync_migrations.py
+@@ -17,6 +17,10 @@ from pathlib import Path
+ ROOT = Path(__file__).resolve().parents[1]
+ SRC = ROOT / "database" / "migrations"
+ DST = ROOT / "fleet" / "kernel" / "_migrations"
++# 审计修复：fleet/setup/core.py 声明 manifest 打包副本由本脚本同步，但此前从未实现，
++# 导致 wheel（安装器即用 wheel 安装）缺 _manifest.json，/setup 在安装版上找不到清单。
++MANIFEST_SRC = ROOT / "scripts" / "installer" / "manifest.json"
++MANIFEST_DST = ROOT / "fleet" / "setup" / "_manifest.json"
+ 
+ 
+ def sync() -> list[Path]:
+@@ -31,6 +35,10 @@ def sync() -> list[Path]:
+         if not (SRC / stale.name).exists():
+             stale.unlink()
+             copied.append(f"-{stale.name}")
++    if MANIFEST_SRC.is_file() and (
++            not MANIFEST_DST.exists() or not filecmp.cmp(MANIFEST_SRC, MANIFEST_DST, shallow=False)):
++        shutil.copy2(MANIFEST_SRC, MANIFEST_DST)
++        copied.append(MANIFEST_DST.name)
+     return copied
+ 
+ 
+@@ -47,6 +55,11 @@ def check() -> int:
+         if not filecmp.cmp(src_files[name], dst_files[name], shallow=False):
+             print(f"迁移副本内容过期: {name}", file=sys.stderr)
+             return 1
++    if MANIFEST_SRC.is_file():
++        if not MANIFEST_DST.is_file() or not filecmp.cmp(MANIFEST_SRC, MANIFEST_DST, shallow=False):
++            print("fleet/setup/_manifest.json 缺失或过期：先运行 python scripts/sync_migrations.py",
++                  file=sys.stderr)
++            return 1
+     print("OK 迁移副本与唯一源一致")
+     return 0
+ 
+-- 
+2.47.3
+

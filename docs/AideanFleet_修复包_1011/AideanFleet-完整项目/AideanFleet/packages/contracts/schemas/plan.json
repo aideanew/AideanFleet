@@ -1,0 +1,22 @@
+{
+  "$id": "schemas/plan.json", "title": "Plan",
+  "description": "Planner 输出；与 fleet/planner/schema.py validate_plan 现状一致（TASK-002 用契约测试双向锁定）",
+  "type": "object", "additionalProperties": true,
+  "required": ["milestones","todos"],
+  "properties": {
+    "milestones": {"type": "array", "items": {"type": "object", "required": ["id","title"], "properties": {"id": {"type": "string"}, "title": {"type": "string"}}}},
+    "todos": {"type": "array", "items": {"$ref": "#/$defs/PlanTodo"}}
+  },
+  "$defs": {
+    "PlanTodo": {
+      "type": "object", "required": ["id","title","role","depends_on","allowed_files","verify","done_when"],
+      "properties": {
+        "id": {"type": "string"}, "milestone": {"type": "string"}, "title": {"type": "string", "minLength": 1},
+        "role": {"type": "string"}, "depends_on": {"type": "array", "items": {"type": "string"}},
+        "allowed_files": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "verify": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "done_when": {"type": "string"}
+      }
+    }
+  }
+}

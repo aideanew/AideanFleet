@@ -1,0 +1,74 @@
+/* =============================================================================
+   AideanFleet 控制台 · 设计令牌（工作包 UI-02 §9.2-1 / 规划总览 9.2.1）
+   固定深色科技风。品牌色为青碧（--accent-cyan），进度语义沿用用户原始设计：
+   完成=绿实心、未完成=红空心、当前=青碧加大圆。
+   ============================================================================= */
+
+:root {
+  /* ---- 背景层 ---- */
+  --bg-base: #0a0e1a;
+  --bg-panel: #101625;
+  --bg-panel-2: #141b2c;
+  --bg-elevated: #182034;
+  --bg-input: #0d1322;
+  --bg-hover: rgba(0, 212, 255, 0.06);
+
+  /* ---- 描边 ---- */
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --line-accent: rgba(0, 212, 255, 0.35);
+
+  /* ---- 文本 ---- */
+  --text: #e6edf7;
+  --text-dim: #93a1b8;
+  --text-mute: #5d6b82;
+  --text-invert: #06111d;
+
+  /* ---- 强调色 ---- */
+  --accent-cyan: #00d4ff;
+  --accent-cyan-dim: rgba(0, 212, 255, 0.16);
+  --accent-teal: #2dd4bf;
+  --accent-violet: #7f77dd;
+
+  /* ---- 语义色 ---- */
+  --ok: #22c55e;
+  --ok-dim: rgba(34, 197, 94, 0.14);
+  --danger: #ef4444;
+  --danger-dim: rgba(239, 68, 68, 0.14);
+  --warn: #f59e0b;
+  --warn-dim: rgba(245, 158, 11, 0.14);
+  --info: #60a5fa;
+  --info-dim: rgba(96, 165, 250, 0.14);
+  --mute: #64748b;
+  --mute-dim: rgba(100, 116, 139, 0.16);
+
+  /* ---- 字体 ---- */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei',
+    'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', 'SFMono-Regular', Consolas,
+    'Liberation Mono', monospace;
+
+  /* ---- 尺寸 ---- */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --topbar-h: 54px;
+  --nav-w-default: 208px;
+  --nav-w-min: 60px;
+  --nav-w-max: 420px;
+  --rail-w-default: 236px;
+  --rail-w-min: 64px;
+  --rail-w-max: 420px;
+
+  /* ---- 动效 ---- */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-fast: 0.14s;
+  --dur: 0.22s;
+  --dur-slow: 0.36s;
+}
+
+/* 深色科技风的细网格底纹（纯 CSS，无图片资源） */
+:root {
+  --grid-bg: radial-gradient(circle at 18% 12%, rgba(0, 212, 255, 0.05), transparent 42%),
+    radial-gradient(circle at 82% 78%, rgba(127, 119, 221, 0.06), transparent 46%);
+}

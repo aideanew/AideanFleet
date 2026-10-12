@@ -1,0 +1,89 @@
+From e21e69bc1f475e3301aec9f467d5f85ba5b7ab3c Mon Sep 17 00:00:00 2001
+From: Hark Audit <audit@local>
+Date: Sun, 11 Oct 2026 14:33:41 +0000
+Subject: [PATCH 08/11] =?UTF-8?q?[fix]=20=E7=AB=AF=E5=8F=A3=E6=AE=8B?=
+ =?UTF-8?q?=E7=95=99=EF=BC=9Atests-e2e=20=E8=AF=8A=E6=96=AD=E8=84=9A?=
+ =?UTF-8?q?=E6=9C=AC=E9=BB=98=E8=AE=A4=20BASE=205000=E2=86=923100=EF=BC=88?=
+ =?UTF-8?q?ADR-005=EF=BC=89=EF=BC=9Bserver=20=E8=AF=AF=E5=AF=BC=E6=80=A7?=
+ =?UTF-8?q?=20steer=5Fdebug=20=E6=97=A5=E5=BF=97=E6=A0=87=E7=AD=BE?=
+ =?UTF-8?q?=E6=9B=B4=E6=AD=A3?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ fleet/console/server.py       | 2 +-
+ tests-e2e/audit-ws-switch.mjs | 2 +-
+ tests-e2e/diag-catchup.mjs    | 2 +-
+ tests-e2e/diag-chat-echo.mjs  | 2 +-
+ tests-e2e/diag-chat-echo2.mjs | 2 +-
+ 5 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/fleet/console/server.py b/fleet/console/server.py
+index 34acf0e..feba47c 100644
+--- a/fleet/console/server.py
++++ b/fleet/console/server.py
+@@ -480,7 +480,7 @@ def _run_started_at(pid: str) -> str | None:
+                 return str(row.get("timestamp") or "") or None
+     except Exception as _exc:
+         import sys as _sys
+-        print("[steer_debug]", type(_exc).__name__, _exc, file=_sys.stderr, flush=True)
++        print("[run_started_at] 读取事件失败:", type(_exc).__name__, _exc, file=_sys.stderr, flush=True)
+         return None
+     return None
+ 
+diff --git a/tests-e2e/audit-ws-switch.mjs b/tests-e2e/audit-ws-switch.mjs
+index dcc3f65..db1fb1b 100644
+--- a/tests-e2e/audit-ws-switch.mjs
++++ b/tests-e2e/audit-ws-switch.mjs
+@@ -7,7 +7,7 @@
+  */
+ import { chromium } from 'playwright'
+ 
+-const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:5000'
++const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:3100'
+ const FROM = 'Test09181120' // P-008
+ const TO_ID = 'P-007'       // Test09171500
+ 
+diff --git a/tests-e2e/diag-catchup.mjs b/tests-e2e/diag-catchup.mjs
+index 5ba6862..b822439 100644
+--- a/tests-e2e/diag-catchup.mjs
++++ b/tests-e2e/diag-catchup.mjs
+@@ -1,7 +1,7 @@
+ /** 复刻 reconnect test2：断网→降级→恢复，抓 events 请求 URL 序列 */
+ import { chromium } from 'playwright'
+ 
+-const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:5000'
++const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:3100'
+ const eventCalls = []
+ const netEvents = []
+ const browser = await chromium.launch()
+diff --git a/tests-e2e/diag-chat-echo.mjs b/tests-e2e/diag-chat-echo.mjs
+index 3dfd9ee..b2dd745 100644
+--- a/tests-e2e/diag-chat-echo.mjs
++++ b/tests-e2e/diag-chat-echo.mjs
+@@ -1,7 +1,7 @@
+ /** 聊天回显链路诊断：解锁 → 发消息 → 抓 WS 下行帧 + dump 聊天 DOM */
+ import { chromium } from 'playwright'
+ 
+-const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:5000'
++const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:3100'
+ const marker = 'diag-' + Date.now()
+ const frames = []
+ const browser = await chromium.launch()
+diff --git a/tests-e2e/diag-chat-echo2.mjs b/tests-e2e/diag-chat-echo2.mjs
+index 22d54f5..1383148 100644
+--- a/tests-e2e/diag-chat-echo2.mjs
++++ b/tests-e2e/diag-chat-echo2.mjs
+@@ -1,7 +1,7 @@
+ /** 复刻 reconnect test3 的完整流程，定位回显渲染断点 */
+ import { chromium } from 'playwright'
+ 
+-const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:5000'
++const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:3100'
+ const marker = 'diag2-' + Date.now()
+ const frames = []
+ const sockets = []
+-- 
+2.47.3
+

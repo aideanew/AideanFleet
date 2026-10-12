@@ -1,0 +1,96 @@
+name: "AideanFleet 安装器构建"
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip build
+          pip install -r requirements.txt
+
+      - name: Build frontend dist
+        working-directory: fleet/console/web
+        run: |
+          npm ci || npm install --no-fund --no-audit
+          npm run build
+
+      - name: Build AideanFleet wheel + wheelhouse
+        run: |
+          python scripts/sync_migrations.py
+          python scripts/sync_migrations.py --check
+          python -m build --wheel
+          python -m pip download -q -d scripts/installer/windows/_wheelhouse .
+
+      - name: Fetch runtimes（构建期下载并校验 SHA256，A-14）
+        run: python scripts/installer/windows/fetch_runtimes.py --mirror auto
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Compile installer
+        shell: cmd
+        run: |
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" scripts\installer\windows\AideanFleet.iss
+
+      - name: Sign（U-12 证书就绪时；否则保持 -UNSIGNED 文件名）
+        env:
+          SIGNTOOL_PFX_PATH: ${{ secrets.SIGNTOOL_PFX_PATH }}
+          SIGNTOOL_PFX_PASSWORD: ${{ secrets.SIGNTOOL_PFX_PASSWORD }}
+          SIGNTOOL_TIMESTAMP_URL: ${{ secrets.SIGNTOOL_TIMESTAMP_URL }}
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem "dist-installer\*-UNSIGNED.exe" | Select-Object -First 1
+          if (-not $exe) { $exe = Get-ChildItem "dist-installer\*.exe" | Select-Object -First 1 }
+          if ($env:SIGNTOOL_PFX_PATH -and (Test-Path $env:SIGNTOOL_PFX_PATH)) {
+            $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+                         Sort-Object FullName -Descending | Select-Object -First 1).FullName
+            $ts = if ($env:SIGNTOOL_TIMESTAMP_URL) { $env:SIGNTOOL_TIMESTAMP_URL } else { "http://timestamp.digicert.com" }
+            & $signtool sign /fd SHA256 /tr $ts /td SHA256 /f $env:SIGNTOOL_PFX_PATH /p $env:SIGNTOOL_PFX_PASSWORD $exe.FullName
+            & $signtool verify /pa $exe.FullName
+            $signed = $exe.FullName -replace '-UNSIGNED', ''
+            Rename-Item $exe.FullName $signed
+            Write-Host "已签名: $signed"
+          } else {
+            Write-Host "U-12 未裁决/证书缺失：产出 UNSIGNED 内部测试包（release 拒绝发布）"
+          }
+
+      - name: Release gate（未签名即失败——仅 tag 构建执行）
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like "refs/tags/v*") {
+            $unsigned = Get-ChildItem "dist-installer\*-UNSIGNED.exe" -ErrorAction SilentlyContinue
+            if ($unsigned) { throw "RELEASE GATE：tag 构建产物未签名（U-12），拒绝发布" }
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aideanfleet-installer
+          path: dist-installer/*.exe
+          retention-days: 30
+
+      - name: Evidence（TASK-207 证据 artifact）
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-TASK-207
+          path: |
+            dist-installer/*.log
+            scripts/installer/windows/_runtimes/*.zip.sha256
+          if-no-files-found: ignore
+          retention-days: 30

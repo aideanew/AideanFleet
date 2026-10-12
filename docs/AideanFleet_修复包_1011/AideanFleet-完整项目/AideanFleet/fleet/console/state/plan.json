@@ -1,0 +1,100 @@
+{
+  "default": {
+    "project": "default",
+    "confirm_mode": "confirm",
+    "updated_at": "2026-09-15T14:16:17.016+08:00",
+    "phases": [
+      {
+        "id": "prepare",
+        "title": "准备",
+        "steps": [
+          {
+            "id": "prep-1",
+            "index": "1/10",
+            "title": "接收指令",
+            "status": "done",
+            "detail": "",
+            "children": []
+          },
+          {
+            "id": "prep-2",
+            "index": "2/10",
+            "title": "分析需求",
+            "status": "done",
+            "detail": "",
+            "children": []
+          },
+          {
+            "id": "prep-3",
+            "index": "3/10",
+            "title": "初始化Manager",
+            "status": "current",
+            "detail": "",
+            "children": []
+          },
+          {
+            "id": "prep-4",
+            "index": "4/10",
+            "title": "建立项目主体计划",
+            "status": "pending",
+            "detail": "",
+            "children": []
+          },
+          {
+            "id": "prep-5",
+            "index": "5/10",
+            "title": "确认创建模型库",
+            "status": "pending",
+            "detail": "",
+            "children": []
+          },
+          {
+            "id": "prep-6",
+            "index": "6/10",
+            "title": "确认创建角色库",
+            "status": "pending",
+            "detail": "",
+            "children": []
+          },
+          {
+            "id": "prep-7",
+            "index": "7/10",
+            "title": "确认创建执行体",
+            "status": "pending",
+            "detail": "",
+            "children": []
+          },
+          {
+            "id": "prep-8",
+            "index": "8/10",
+            "title": "确认创建工具库",
+            "status": "pending",
+            "detail": "",
+            "children": []
+          },
+          {
+            "id": "prep-9",
+            "index": "9/10",
+            "title": "确认创建提示词",
+            "status": "pending",
+            "detail": "",
+            "children": []
+          },
+          {
+            "id": "prep-10",
+            "index": "10/10",
+            "title": "一切就绪!是否启动?",
+            "status": "pending",
+            "detail": "",
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "execute",
+        "title": "执行",
+        "steps": []
+      }
+    ]
+  }
+}

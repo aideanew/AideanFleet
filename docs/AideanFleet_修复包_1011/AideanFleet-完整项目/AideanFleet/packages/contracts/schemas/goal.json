@@ -1,0 +1,13 @@
+{
+  "$id": "schemas/goal.json", "title": "Goal",
+  "type": "object", "additionalProperties": false,
+  "required": ["id","title","status","requirements","workspace","created_at"],
+  "properties": {
+    "id": {"type": "string"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 120},
+    "status": {"enum": ["active","done","paused"]},
+    "requirements": {"type": "string", "maxLength": 20000, "description": "migration 002 新增"},
+    "workspace": {"type": "string", "description": "绝对路径，必须落在 workspace.allowed_roots 内；migration 002 新增"},
+    "created_at": {"type": "string"}
+  }
+}

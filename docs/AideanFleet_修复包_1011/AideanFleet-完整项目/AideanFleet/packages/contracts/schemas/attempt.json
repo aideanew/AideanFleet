@@ -1,0 +1,14 @@
+{
+  "$id": "schemas/attempt.json", "title": "Attempt",
+  "type": "object", "additionalProperties": false,
+  "required": ["id","todo_id","harness","model","started_at","ended_at","exit_code","tokens_in","tokens_out","evidence_path","turn_result","session_id"],
+  "properties": {
+    "id": {"type": "integer"}, "todo_id": {"type": "string"},
+    "harness": {"type": "string", "description": "claude|codex|opencode|planner|host|..."},
+    "model": {"type": "string"},
+    "started_at": {"type": "string"}, "ended_at": {"type": ["string","null"]},
+    "exit_code": {"type": ["integer","null"]},
+    "tokens_in": {"type": "integer", "minimum": 0}, "tokens_out": {"type": "integer", "minimum": 0},
+    "evidence_path": {"type": "string"}, "turn_result": {"type": "string"}, "session_id": {"type": "string"}
+  }
+}

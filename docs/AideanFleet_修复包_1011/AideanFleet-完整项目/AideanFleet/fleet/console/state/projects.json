@@ -1,0 +1,14 @@
+# [READ-ONLY SNAPSHOT · CORE-03] 权威数据在 SQLite projects 表（data/fleet.db），
+# 本文件仅是历史遗留的只读快照，任何代码不得再写入；旧读写层已归档至 fleet/console/_deprecated/。
+{
+  "projects": [
+    {
+      "id": "default",
+      "name": "默认项目"
+    },
+    {
+      "id": "aideanfleet",
+      "name": "AideanFleet"
+    }
+  ]
+}

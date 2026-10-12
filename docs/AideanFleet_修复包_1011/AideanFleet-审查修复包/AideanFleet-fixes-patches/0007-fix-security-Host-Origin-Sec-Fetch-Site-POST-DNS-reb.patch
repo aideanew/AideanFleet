@@ -1,0 +1,122 @@
+From 0b5f9d8ef85a177a8e2d34560428bfb6f8457ae0 Mon Sep 17 00:00:00 2001
+From: Hark Audit <audit@local>
+Date: Sun, 11 Oct 2026 14:33:34 +0000
+Subject: [PATCH 07/11] =?UTF-8?q?[fix][security]=20=E5=85=8D=E4=BC=9A?=
+ =?UTF-8?q?=E8=AF=9D=E5=9B=9E=E7=8E=AF=E7=AE=A1=E7=90=86=E9=9D=A2=E5=8A=A0?=
+ =?UTF-8?q?=E6=B5=8F=E8=A7=88=E5=99=A8=E6=9D=A5=E6=BA=90=E6=A0=A1=E9=AA=8C?=
+ =?UTF-8?q?=EF=BC=88Host/Origin/Sec-Fetch-Site=EF=BC=89=EF=BC=8C=E9=98=B2?=
+ =?UTF-8?q?=E8=B7=A8=E7=AB=99=20POST=20=E4=B8=8E=20DNS=20rebinding=20?=
+ =?UTF-8?q?=E6=94=B9=E5=86=99=20fleet.toml=20=E5=A4=96=E6=B3=84=E5=AF=86?=
+ =?UTF-8?q?=E9=92=A5?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ fleet/console/loopback.py    | 42 ++++++++++++++++++++++++++++++++++--
+ tests/core/test_setup_api.py | 27 ++++++++++++++++++++++-
+ 2 files changed, 66 insertions(+), 3 deletions(-)
+
+diff --git a/fleet/console/loopback.py b/fleet/console/loopback.py
+index 4cad12b..1051787 100644
+--- a/fleet/console/loopback.py
++++ b/fleet/console/loopback.py
+@@ -1,7 +1,20 @@
+-"""回环来源判定（identity.json B1）：所有管理面/setup 接口共用。"""
++"""回环来源判定（identity.json B1）：所有管理面/setup 接口共用。
++
++审计修复（audit/verify-6c40830）：仅凭 TCP 来源是回环不足以证明“是本机用户在操作”——
++用户浏览器里任意网站都能向 http://127.0.0.1:3100 发 text/plain 的跨站 POST（无需 CORS 预检，
++request.json() 不看 Content-Type），或经 DNS rebinding 以外部域名访问本机端口。免会话的
++setup.* / config.fleet.* 因此可被网页改写 fleet.toml 的 base_url 并触发模型连通测试，把密钥
++发往第三方。这里追加浏览器来源校验：
++- Host 头（若有）必须是回环主机名 → 挡 DNS rebinding；
++- Origin 头（若有）必须是回环源 → 挡跨站请求；
++- Sec-Fetch-Site 为 cross-site 一律拒绝。
++非浏览器客户端（CLI/curl）通常不带 Origin，不受影响。
++"""
+ 
+ from __future__ import annotations
+ 
++from urllib.parse import urlsplit
++
+ from fastapi import Request
+ 
+ LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
+@@ -11,5 +24,30 @@ def client_host(request: Request) -> str:
+     return str(getattr(request.client, "host", "") or "")
+ 
+ 
++def _hostname(value: str) -> str:
++    value = (value or "").strip().lower()
++    if not value:
++        return ""
++    try:
++        return (urlsplit(value if "//" in value else f"//{value}").hostname or "").strip("[]")
++    except ValueError:
++        return "\x00invalid"
++
++
++def browser_context_ok(request: Request) -> bool:
++    headers = request.headers
++    host = headers.get("host")
++    if host is not None and _hostname(host) not in LOOPBACK_HOSTS:
++        return False
++    origin = headers.get("origin")
++    if origin is not None and origin != "null" and _hostname(origin) not in LOOPBACK_HOSTS:
++        return False
++    if origin == "null":
++        return False
++    if (headers.get("sec-fetch-site") or "").lower() == "cross-site":
++        return False
++    return True
++
++
+ def is_loopback(request: Request) -> bool:
+-    return client_host(request) in LOOPBACK_HOSTS
++    return client_host(request) in LOOPBACK_HOSTS and browser_context_ok(request)
+diff --git a/tests/core/test_setup_api.py b/tests/core/test_setup_api.py
+index ed9199e..9b0c09a 100644
+--- a/tests/core/test_setup_api.py
++++ b/tests/core/test_setup_api.py
+@@ -34,7 +34,8 @@ def core_lock():
+ def tc(fleet_env):
+     from fastapi.testclient import TestClient
+ 
+-    return TestClient(console_server.app)
++    # 回环 Host 头（loopback.browser_context_ok 校验 Host 防 DNS rebinding）
++    return TestClient(console_server.app, base_url="http://127.0.0.1:3100")
+ 
+ 
+ def _host(monkeypatch, host: str):
+@@ -183,3 +184,27 @@ def test_setup_login_launches_console(monkeypatch, tc):
+ 
+     missing = tc.post("/api/setup/login/no-such-harness")
+     assert missing.status_code == 404 and missing.json()["reason"] == "HARNESS_NOT_FOUND"
++
++
++# ---- 审计回归：浏览器跨站 / DNS rebinding 不得触达免会话管理面 ----
++
++@pytest.mark.parametrize("headers", [
++    {"Origin": "https://evil.example"},
++    {"Origin": "null"},
++    {"Sec-Fetch-Site": "cross-site"},
++    {"Host": "evil.example:3100"},
++])
++def test_cross_site_browser_requests_rejected(tc, monkeypatch, headers):
++    _host(monkeypatch, "127.0.0.1")
++    response = tc.get("/api/setup/status", headers=headers)
++    assert response.status_code == 403, response.text
++    put = tc.put("/api/config/fleet", content='{"models": {}}',
++                  headers={**headers, "Content-Type": "text/plain"})
++    assert put.status_code == 403, put.text
++
++
++def test_same_origin_browser_request_allowed(tc, monkeypatch):
++    _host(monkeypatch, "127.0.0.1")
++    response = tc.get("/api/setup/status", headers={
++        "Origin": "http://127.0.0.1:3100", "Sec-Fetch-Site": "same-origin"})
++    assert response.status_code == 200, response.text
+-- 
+2.47.3
+
