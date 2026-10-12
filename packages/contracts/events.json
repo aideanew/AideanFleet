@@ -14,7 +14,7 @@
       }
     },
     "EventKind": {"enum": [
-      "goal:created","goal:done",
+      "goal:created","goal:clarified","goal:frozen","goal:done",
       "todo:created","todo:claimed","todo:running","todo:verifying","todo:done",
       "todo:successor","todo:blocked","todo:needs_user","todo:reopened","todo:lease_expired",
       "plan:diff_proposed","plan:decided","setup:step"
@@ -22,6 +22,8 @@
   },
   "existing": ["goal:created","goal:done","todo:created","todo:claimed","todo:running","todo:verifying","todo:done","todo:successor","todo:blocked","todo:needs_user","todo:reopened","todo:lease_expired"],
   "new": {
+    "goal:clarified": {"slice": "P3", "trigger": "draft 态 goal 追加式澄清成功（append_goal_requirements）", "payload": {"addition": "string（截断 200 字）"}},
+    "goal:frozen": {"slice": "P3", "trigger": "draft 态 goal 冻结成功（freeze_goal，同事务建 plan todo）", "payload": {"title": "string"}},
     "plan:diff_proposed": {"slice": "S6", "trigger": "steer/plan todo 产出 PlanDiff 并进入 needs_user", "payload": {"diff": "schemas/plan-diff.json"}},
     "plan:decided": {"slice": "S6", "trigger": "POST decision 成功", "payload": {"decision": "approve|reject", "applied": "int"}},
     "setup:step": {"slice": "S2", "trigger": "安装作业每个组件状态变化", "payload": {"job_id": "string", "component": "string", "state": "pending|running|succeeded|failed|skipped", "error_code": "InstallStepErrorCode|null"},

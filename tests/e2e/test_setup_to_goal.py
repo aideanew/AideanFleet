@@ -83,3 +83,53 @@ def test_setup_to_goal_golden_line(tc, fleet_env):
 
     expected_root = fleet_env["data"] / "workspaces"
     assert Path(goal["workspace"]).parent == expected_root
+
+
+def test_draft_clarify_freeze_golden_line(tc, fleet_env):
+    """P3：draft 离线立标 → 冻结门序（SETUP 先于长度）→ 澄清 → 冻结出计划 → frozen 拒改。"""
+    # 1) 净环境即可建草稿（P3 决策：draft 不依赖规划器就绪）
+    resp = tc.post("/api/kernel/goals", json={
+        "title": "草稿金线", "requirements": "先立目标", "mode": "draft"})
+    assert resp.status_code == 200, resp.text
+    gid = resp.json()["goal"]["id"]
+    assert resp.json()["plan_todo_id"] is None
+    assert resp.json()["goal"]["requirements_state"] == "draft"
+
+    # 2) 净环境冻结 → SETUP_INCOMPLETE（门先于需求长度检查：冻结即触发规划）
+    resp = tc.post(f"/api/kernel/goals/{gid}/freeze")
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["reason"] == "SETUP_INCOMPLETE"
+
+    # 3) 补模型 + 密钥（golden 同款 merge+保底绑定+热更新）
+    resp = tc.put("/api/config/fleet", json={"models": {
+        "golden2": {"base_url": "https://api.openai.com/v1",
+                    "model_id": "gpt-4o-mini",
+                    "api_key_env": _ENV_NAME}}})
+    assert resp.status_code == 200, resp.text
+    resp = tc.put(f"/api/setup/secrets/{_ENV_NAME}",
+                  json={"value": "e2e-draft-secret-0002"})
+    assert resp.status_code == 200, resp.text
+
+    # 4) 规划器就绪但需求太短 → REQUIREMENTS_NOT_READY（状态仍 draft）
+    resp = tc.post(f"/api/kernel/goals/{gid}/freeze")
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["reason"] == "REQUIREMENTS_NOT_READY"
+
+    # 5) 追加式澄清补足需求
+    resp = tc.post(f"/api/kernel/goals/{gid}/clarify",
+                   json={"addition": "做一个个人博客，支持 Markdown 渲染与标签归档"})
+    assert resp.status_code == 200, resp.text
+
+    # 6) 冻结 200：锁定 + 同事务建 plan todo
+    resp = tc.post(f"/api/kernel/goals/{gid}/freeze")
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["goal"]["requirements_state"] == "frozen"
+    assert payload["plan_todo_id"]
+    todo = tc.get(f"/api/kernel/todos/{payload['plan_todo_id']}").json()
+    assert todo["todo"]["kind"] == "plan" and todo["todo"]["status"] == "open"
+
+    # 7) frozen 后再澄清 → GOAL_ALREADY_FROZEN
+    resp = tc.post(f"/api/kernel/goals/{gid}/clarify", json={"addition": "迟到的需求"})
+    assert resp.status_code == 409
+    assert resp.json()["reason"] == "GOAL_ALREADY_FROZEN"

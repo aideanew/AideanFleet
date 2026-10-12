@@ -23,6 +23,7 @@ export interface Goal {
   status: "active" | "done" | "paused";
   requirements: string;
   workspace: string;
+  requirements_state: "draft" | "frozen";
   created_at: string;
 }
 
@@ -127,7 +128,7 @@ export interface Event {
   published: 0 | 1;
 }
 
-export type EventKind = "goal:created" | "goal:done" | "todo:created" | "todo:claimed" | "todo:running" | "todo:verifying" | "todo:done" | "todo:successor" | "todo:blocked" | "todo:needs_user" | "todo:reopened" | "todo:lease_expired" | "plan:diff_proposed" | "plan:decided" | "setup:step";
+export type EventKind = "goal:created" | "goal:clarified" | "goal:frozen" | "goal:done" | "todo:created" | "todo:claimed" | "todo:running" | "todo:verifying" | "todo:done" | "todo:successor" | "todo:blocked" | "todo:needs_user" | "todo:reopened" | "todo:lease_expired" | "plan:diff_proposed" | "plan:decided" | "setup:step";
 
 export interface ErrorBody {
   ok: false;
@@ -137,7 +138,7 @@ export interface ErrorBody {
   retryable?: boolean;
 }
 
-export type ErrorCode = "UNAUTHORIZED" | "FORBIDDEN_NON_LOOPBACK" | "VALIDATION_FAILED" | "NOT_FOUND" | "GOAL_NOT_FOUND" | "TODO_NOT_FOUND" | "JOB_NOT_FOUND" | "MODEL_NOT_FOUND" | "HARNESS_NOT_FOUND" | "ILLEGAL_TRANSITION" | "DECISION_ALREADY_MADE" | "WORKSPACE_NOT_ALLOWED" | "SETUP_INCOMPLETE" | "INSTALL_IN_PROGRESS" | "PLATFORM_UNSUPPORTED" | "HARNESS_NOT_INSTALLED" | "SECRET_NAME_NOT_DECLARED" | "SECRET_MISSING" | "PLAINTEXT_SECRET" | "IDEMPOTENCY_CONFLICT" | "CREATE_FAILED" | "INTERNAL";
+export type ErrorCode = "UNAUTHORIZED" | "FORBIDDEN_NON_LOOPBACK" | "VALIDATION_FAILED" | "NOT_FOUND" | "GOAL_NOT_FOUND" | "TODO_NOT_FOUND" | "JOB_NOT_FOUND" | "MODEL_NOT_FOUND" | "HARNESS_NOT_FOUND" | "ILLEGAL_TRANSITION" | "DECISION_ALREADY_MADE" | "GOAL_ALREADY_FROZEN" | "REQUIREMENTS_NOT_READY" | "WORKSPACE_NOT_ALLOWED" | "SETUP_INCOMPLETE" | "INSTALL_IN_PROGRESS" | "PLATFORM_UNSUPPORTED" | "HARNESS_NOT_INSTALLED" | "SECRET_NAME_NOT_DECLARED" | "SECRET_MISSING" | "PLAINTEXT_SECRET" | "IDEMPOTENCY_CONFLICT" | "CREATE_FAILED" | "INTERNAL";
 
 export type InstallStepErrorCode = "DOWNLOAD_FAILED" | "CHECKSUM_MISMATCH" | "NETWORK_BLOCKED" | "DISK_FULL" | "PERMISSION_DENIED" | "NPM_INSTALL_FAILED" | "VERSION_TOO_OLD" | "POST_INSTALL_NOT_ON_PATH" | "UNSUPPORTED_ARCH";
 
@@ -167,18 +168,42 @@ export interface GoalsCreateRequest {
   title: string;
   requirements: string;
   workspace?: string;
+  mode?: "direct" | "draft";
 }
 
 export interface GoalsCreateResponse {
   ok: true;
   goal: Goal;
-  plan_todo_id: string;
+  plan_todo_id: string | null;
 }
 
 export interface GoalsListResponse {
   ok: true;
   items: Array<Goal>;
   next_cursor: string | null;
+}
+
+export interface GoalsGetResponse {
+  ok: true;
+  goal: Goal;
+}
+
+export interface GoalsClarifyRequest {
+  addition: string;
+}
+
+export interface GoalsClarifyResponse {
+  ok: true;
+  goal: Goal;
+}
+
+export interface GoalsFreezeRequest {
+}
+
+export interface GoalsFreezeResponse {
+  ok: true;
+  goal: Goal;
+  plan_todo_id: string;
 }
 
 export interface AttentionResponse {
@@ -340,6 +365,8 @@ export interface QuickstartCreateResponse {
   plan: {
   stages: number;
   tasks: number;
+  goal_id?: string;
+  plan_todo_id?: string;
 } | null;
 }
 

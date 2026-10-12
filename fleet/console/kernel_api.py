@@ -1,8 +1,10 @@
 """这是什么：Kernel 投影 API（TASK-103，契约 api.json）。
 唯一数据源：fleet.kernel（单写者）；本路由只做读投影 + typed 管理面动作。
 错误映射（errors.json kernel_exception_mapping）：
-  KeyError → 404 GOAL_NOT_FOUND / TODO_NOT_FOUND；KernelError → 409 ILLEGAL_TRANSITION。
-管理面（B3）：goals.create / todos.reopen 需 owner 会话（server.py 会话中间件覆盖）。
+  KeyError → 404 GOAL_NOT_FOUND / TODO_NOT_FOUND；
+  GoalAlreadyFrozen → 409 GOAL_ALREADY_FROZEN；RequirementsNotReady → 409 REQUIREMENTS_NOT_READY（P3）；
+  KernelError → 409 ILLEGAL_TRANSITION。
+管理面（B3）：goals.create / goals.clarify / goals.freeze / todos.reopen 需 owner 会话（server.py 会话中间件覆盖）。
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fleet.core.paths import paths
 from fleet.kernel import store
 from fleet.kernel import Kernel, KernelError
+from fleet.kernel.kernel import GoalAlreadyFrozen, RequirementsNotReady
 
 router = APIRouter(prefix="/api/kernel", tags=["kernel"])
 
@@ -47,6 +50,10 @@ def _map_kernel_error(exc: Exception):
         if "goal" in text or "G-" in text:
             return _error("GOAL_NOT_FOUND", f"目标不存在 {text}", 404)
         return _error("TODO_NOT_FOUND", f"任务不存在 {text}", 404)
+    if isinstance(exc, GoalAlreadyFrozen):
+        return _error("GOAL_ALREADY_FROZEN", str(exc), 409)
+    if isinstance(exc, RequirementsNotReady):
+        return _error("REQUIREMENTS_NOT_READY", str(exc), 409)
     if isinstance(exc, KernelError):
         return _error("ILLEGAL_TRANSITION", str(exc), 409)
     return _error("INTERNAL", f"内部错误：{exc}", 500)
@@ -129,11 +136,14 @@ async def goals_create(request: Request):
     title = str(body.get("title") or "").strip()
     requirements = str(body.get("requirements") or "").strip()
     workspace = str(body.get("workspace") or "").strip()
+    mode = str(body.get("mode") or "direct").strip()
     details: dict[str, str] = {}
     if not title or len(title) > 120:
         details["title"] = "必填，1..120 字符"
     if not requirements or len(requirements) > 20000:
         details["requirements"] = "必填，1..20000 字符"
+    if mode not in ("direct", "draft"):
+        details["mode"] = "只允许 direct / draft"
     if details:
         return _error("VALIDATION_FAILED", "请求字段不合法", 422, details)
 
@@ -145,28 +155,33 @@ async def goals_create(request: Request):
 
     # SETUP_INCOMPLETE 三态（P1.4）：无模型/缺密钥/未绑定 → 409 带 hint 引导去 /setup
     # （先于 workspace 细节校验；details.hint 纯增量，旧前端读 reason/error 不受影响）
-    try:
-        from fleet.cli.clients import planner_status
+    # draft 模式不过此门（P3）：不出计划、无需规划器，建目标后经 goals.freeze 时再门。
+    if mode != "draft":
+        try:
+            from fleet.cli.clients import planner_status
 
-        status = planner_status()
-        if not status["ready"]:
-            return _error("SETUP_INCOMPLETE", status["message"], 409,
-                          {"hint": {"state": status["state"],
-                                    "missing_keys": status["missing_keys"]}})
-    except Exception:
-        pass
+            status = planner_status()
+            if not status["ready"]:
+                return _error("SETUP_INCOMPLETE", status["message"], 409,
+                              {"hint": {"state": status["state"],
+                                        "missing_keys": status["missing_keys"]}})
+        except Exception:
+            pass
 
     if not _workspace_ok(workspace):
         return _error("WORKSPACE_NOT_ALLOWED",
                       f"工作区 {workspace} 不在白名单内（允许：{', '.join(roots) or '未配置'}）", 422)
 
+    kernel = _kernel()
     try:
-        goal_id, plan_todo_id = _kernel().create_goal_with_plan(title, requirements, workspace)
+        if mode == "draft":
+            goal_id = kernel.create_goal_draft(title, requirements, workspace)
+            plan_todo_id = None
+        else:
+            goal_id, plan_todo_id = kernel.create_goal_with_plan(title, requirements, workspace)
+        goal = kernel.get_goal(goal_id)
     except Exception as exc:
         return _map_kernel_error(exc)
-    goal = {"id": goal_id, "title": title, "status": "active",
-            "requirements": requirements, "workspace": workspace,
-            "created_at": _kernel().get_todo(plan_todo_id)["created_at"]}
     payload = {"ok": True, "goal": goal, "plan_todo_id": plan_todo_id}
     _store_idempotent(request, payload)
     return JSONResponse(payload, status_code=200)
@@ -188,6 +203,57 @@ def goals_list(limit: int = 100, cursor: str | None = None):
     page = goals[offset:offset + limit]
     next_cursor = f"o:{offset + limit}" if offset + limit < len(goals) else None
     return {"ok": True, "items": page, "next_cursor": next_cursor}
+
+
+@router.get("/goals/{goal_id}")
+def goals_get(goal_id: str):
+    """P3：goal 全列投影（含 requirements_state）。"""
+    try:
+        goal = _kernel().get_goal(goal_id)
+    except Exception as exc:
+        return _map_kernel_error(exc)
+    return {"ok": True, "goal": goal}
+
+
+@router.post("/goals/{goal_id}/clarify")
+async def goals_clarify(goal_id: str, request: Request):
+    """P3 追加式澄清：draft 态把 addition 并入 requirements，可多次。"""
+    try:
+        body = await request.json()
+    except Exception:
+        return _error("VALIDATION_FAILED", "请求体必须是 JSON 对象", 422)
+    addition = str((body or {}).get("addition") or "").strip()
+    if not addition or len(addition) > 20000:
+        return _error("VALIDATION_FAILED", "addition 必填，1..20000 字符", 422)
+    try:
+        goal = _kernel().append_goal_requirements(goal_id, addition)
+    except Exception as exc:
+        return _map_kernel_error(exc)
+    return {"ok": True, "goal": goal}
+
+
+@router.post("/goals/{goal_id}/freeze")
+def goals_freeze(goal_id: str):
+    """P3 冻结：锁定需求并同事务建 kind=plan 规划 todo。
+
+    过 SETUP_INCOMPLETE 三态门（与 direct 建目标一致，P3 决策）：
+    冻结即触发规划，规划器未就绪时给引导而非静默卡死。
+    """
+    try:
+        from fleet.cli.clients import planner_status
+
+        status = planner_status()
+        if not status["ready"]:
+            return _error("SETUP_INCOMPLETE", status["message"], 409,
+                          {"hint": {"state": status["state"],
+                                    "missing_keys": status["missing_keys"]}})
+    except Exception:
+        pass
+    try:
+        _, plan_todo_id, goal = _kernel().freeze_goal(goal_id)
+    except Exception as exc:
+        return _map_kernel_error(exc)
+    return {"ok": True, "goal": goal, "plan_todo_id": plan_todo_id}
 
 
 # ---------------------------------------------------------------------------

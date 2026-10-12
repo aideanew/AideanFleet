@@ -1,4 +1,6 @@
-"""TASK-103：Kernel 投影 API 契约测试（goals.create/list、todos.get、evidence、todos.list 分页）。"""
+"""TASK-103：Kernel 投影 API 契约测试（goals.create/list、todos.get、evidence、todos.list 分页）。
+P3 新增：goals.create mode=draft、goals.get/clarify/freeze 三端点（含真契约校验）。
+"""
 
 from __future__ import annotations
 
@@ -10,9 +12,30 @@ import pytest
 from fleet.console import server as console_server
 from fleet.kernel import Kernel, store
 from fleet.kernel.state import TurnResult
-from tests.contracts.validator import validate
+from tests.contracts.validator import load_schema, validate
 
 CONTRACTS = Path(__file__).resolve().parents[2] / "packages" / "contracts"
+
+
+def _endpoint(endpoint_id: str) -> dict:
+    api = json.loads((CONTRACTS / "api.json").read_text(encoding="utf-8"))
+    for ep in api["endpoints"]:
+        if ep["id"] == endpoint_id:
+            return ep
+    raise AssertionError(f"端点未登记契约: {endpoint_id}")
+
+
+def _validate_ep(payload: dict, endpoint_id: str):
+    """真契约校验（P3）：按端点 id 抽 response schema（$ref 跨文件可解析）。"""
+    errors = validate(payload, _endpoint(endpoint_id)["response"], root_dir=CONTRACTS)
+    assert errors == [], f"{endpoint_id} 响应不符契约: {errors}"
+
+
+def _validate_error_body(payload: dict):
+    errors_doc = load_schema("errors.json")
+    errors = validate(payload, errors_doc["$defs"]["ErrorBody"],
+                      root_dir=CONTRACTS, root_schema=errors_doc)
+    assert errors == [], f"错误体不符契约: {errors}"
 
 
 @pytest.fixture()
@@ -247,3 +270,114 @@ def test_chat_routes_to_steer_when_single_active_goal(client, monkeypatch, fleet
         "message": f"启动新项目：ChatLegacy（工作区：{fleet_env['root'] / 'ChatLegacy'}）"})
     assert legacy.status_code == 200
     assert not legacy.json().get("steer_todo_id")
+
+
+# ---------------------------------------------------------------------------
+# P3：draft 模式 + goals.get / clarify / freeze
+# ---------------------------------------------------------------------------
+
+
+def test_goals_create_draft_mode(client):
+    created = client.post("/api/kernel/goals", json={
+        "title": "草稿目标", "requirements": "先做一版落地页", "mode": "draft",
+        "workspace": "E:/Demo/Calc"}, headers={"Idempotency-Key": "draft-0"})
+    assert created.status_code == 200, created.text
+    payload = created.json()
+    assert payload["plan_todo_id"] is None  # draft 不出计划
+    assert payload["goal"]["requirements_state"] == "draft"
+    _validate_ep(payload, "goals.create")
+    todos = client.get(f"/api/kernel/todos?goal_id={payload['goal']['id']}").json()
+    assert todos["items"] == []
+
+
+def test_goals_create_draft_skips_setup_gate(client, monkeypatch):
+    """P3 决策：draft 建目标不依赖规划器就绪（门在 freeze 时把关）。"""
+    monkeypatch.delenv("FAKE_PLANNER_KEY", raising=False)
+    created = client.post("/api/kernel/goals", json={
+        "title": "离线草稿", "requirements": "无模型也能先立目标", "mode": "draft",
+        "workspace": "E:/Demo/Calc"})
+    assert created.status_code == 200, created.text
+    assert created.json()["goal"]["requirements_state"] == "draft"
+
+
+def test_goals_create_invalid_mode(client):
+    bad = client.post("/api/kernel/goals", json={
+        "title": "x", "requirements": "y", "mode": "auto", "workspace": "E:/Demo/Calc"})
+    assert bad.status_code == 422 and bad.json()["reason"] == "VALIDATION_FAILED"
+    assert bad.json()["details"]["mode"]
+
+
+def test_goals_get_projected_with_state(client):
+    created = client.post("/api/kernel/goals", json={
+        "title": "直建目标", "requirements": "direct 模式建即冻结",
+        "workspace": "E:/Demo/Calc"}, headers={"Idempotency-Key": "get-0"}).json()
+    got = client.get(f"/api/kernel/goals/{created['goal']['id']}")
+    assert got.status_code == 200, got.text
+    payload = got.json()
+    assert payload["goal"]["requirements_state"] == "frozen"  # direct 建即冻结
+    _validate_ep(payload, "goals.get")
+
+    missing = client.get("/api/kernel/goals/G-NOPE")
+    assert missing.status_code == 404 and missing.json()["reason"] == "GOAL_NOT_FOUND"
+    _validate_error_body(missing.json())
+
+
+def test_goals_clarify_freeze_full_flow(client):
+    created = client.post("/api/kernel/goals", json={
+        "title": "澄清流程", "requirements": "初始一句话需求", "mode": "draft",
+        "workspace": "E:/Demo/Calc"}, headers={"Idempotency-Key": "cf-0"}).json()
+    gid = created["goal"]["id"]
+
+    clarified = client.post(f"/api/kernel/goals/{gid}/clarify",
+                            json={"addition": "补充：要支持导出 PDF"})
+    assert clarified.status_code == 200, clarified.text
+    goal = clarified.json()["goal"]
+    assert "初始一句话需求" in goal["requirements"] and "导出 PDF" in goal["requirements"]
+    assert goal["requirements_state"] == "draft"
+    _validate_ep(clarified.json(), "goals.clarify")
+
+    bad_addition = client.post(f"/api/kernel/goals/{gid}/clarify", json={"addition": ""})
+    assert bad_addition.status_code == 422 and bad_addition.json()["reason"] == "VALIDATION_FAILED"
+    missing = client.post("/api/kernel/goals/G-NOPE/clarify", json={"addition": "x"})
+    assert missing.status_code == 404 and missing.json()["reason"] == "GOAL_NOT_FOUND"
+
+    frozen = client.post(f"/api/kernel/goals/{gid}/freeze")
+    assert frozen.status_code == 200, frozen.text
+    payload = frozen.json()
+    assert payload["goal"]["requirements_state"] == "frozen"
+    assert payload["plan_todo_id"]
+    _validate_ep(payload, "goals.freeze")
+    todo = client.get(f"/api/kernel/todos/{payload['plan_todo_id']}").json()
+    assert todo["todo"]["kind"] == "plan" and todo["todo"]["status"] == "open"
+
+    # frozen 后：再澄清 / 再冻结 → 409 GOAL_ALREADY_FROZEN
+    reclarify = client.post(f"/api/kernel/goals/{gid}/clarify", json={"addition": "再加"})
+    assert reclarify.status_code == 409 and reclarify.json()["reason"] == "GOAL_ALREADY_FROZEN"
+    _validate_error_body(reclarify.json())
+    refreeze = client.post(f"/api/kernel/goals/{gid}/freeze")
+    assert refreeze.status_code == 409 and refreeze.json()["reason"] == "GOAL_ALREADY_FROZEN"
+
+
+def test_goals_freeze_short_requirements(client):
+    created = client.post("/api/kernel/goals", json={
+        "title": "短需求", "requirements": "太短", "mode": "draft",
+        "workspace": "E:/Demo/Calc"}, headers={"Idempotency-Key": "short-0"}).json()
+    resp = client.post(f"/api/kernel/goals/{created['goal']['id']}/freeze")
+    assert resp.status_code == 409 and resp.json()["reason"] == "REQUIREMENTS_NOT_READY"
+    _validate_error_body(resp.json())
+    # 状态未变，仍可继续澄清
+    goal = client.get(f"/api/kernel/goals/{created['goal']['id']}").json()["goal"]
+    assert goal["requirements_state"] == "draft"
+
+
+def test_goals_freeze_setup_incomplete(client, monkeypatch):
+    """P3 决策：freeze 过 SETUP_INCOMPLETE 三态门（冻结即触发规划，给引导而非静默卡死）。"""
+    created = client.post("/api/kernel/goals", json={
+        "title": "未就绪冻结", "requirements": "足够长的需求描述以便冻结测试",
+        "mode": "draft", "workspace": "E:/Demo/Calc"},
+        headers={"Idempotency-Key": "fz-0"}).json()
+    monkeypatch.delenv("FAKE_PLANNER_KEY", raising=False)
+    resp = client.post(f"/api/kernel/goals/{created['goal']['id']}/freeze")
+    assert resp.status_code == 409 and resp.json()["reason"] == "SETUP_INCOMPLETE"
+    hint = resp.json()["details"]["hint"]
+    assert hint["state"] == "no_key" and hint["missing_keys"] == ["FAKE_PLANNER_KEY"]

@@ -66,57 +66,68 @@
    "status": "new",
    "slice": "S1",
    "idempotent_with_key": true,
-   "request": {
-    "type": "object",
-    "additionalProperties": false,
-    "required": [
-     "title",
-     "requirements"
-    ],
-    "properties": {
-     "title": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 120
-     },
-     "requirements": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 20000
-     },
-     "workspace": {
-      "type": "string",
-      "description": "缺省 = workspace.allowed_roots[0]/<slug(title)>；必须落在 allowed_roots 内"
+    "request": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "title",
+      "requirements"
+     ],
+     "properties": {
+      "title": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 120
+      },
+      "requirements": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 20000
+      },
+      "workspace": {
+       "type": "string",
+       "description": "缺省 = workspace.allowed_roots[0]/<slug(title)>；必须落在 allowed_roots 内"
+      },
+      "mode": {
+       "enum": [
+        "direct",
+        "draft"
+       ],
+       "description": "direct（默认）= 建即冻结并自动出规划；draft = 只建 goal（requirements_state='draft'，plan_todo_id=null），后续经 goals.clarify 澄清、goals.freeze 冻结触发规划"
+      }
      }
-    }
-   },
-   "response": {
-    "type": "object",
-    "required": [
-     "ok",
-     "goal",
-     "plan_todo_id"
-    ],
-    "properties": {
-     "ok": {
-      "const": true
-     },
-     "goal": {
-      "$ref": "schemas/goal.json"
-     },
-     "plan_todo_id": {
-      "type": "string"
+    },
+    "response": {
+     "type": "object",
+     "required": [
+      "ok",
+      "goal",
+      "plan_todo_id"
+     ],
+     "properties": {
+      "ok": {
+       "const": true
+      },
+      "goal": {
+       "$ref": "schemas/goal.json"
+      },
+      "plan_todo_id": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "direct 模式返回规划 todo id；draft 模式为 null（冻结前不出计划）"
+      }
      }
-    }
+    },
+    "errors": [
+     "VALIDATION_FAILED",
+     "WORKSPACE_NOT_ALLOWED",
+     "UNAUTHORIZED",
+     "SETUP_INCOMPLETE"
+    ],
+    "effect": "direct（默认）：同事务 create_goal(requirements_state='frozen') + create_todo(kind=plan, packet=requirements)，事件 goal:created、todo:created；draft：create_goal_draft（state='draft'，无 todo），事件 goal:created"
    },
-   "errors": [
-    "VALIDATION_FAILED",
-    "WORKSPACE_NOT_ALLOWED",
-    "UNAUTHORIZED",
-    "SETUP_INCOMPLETE"
-   ],
-   "effect": "同事务：create_goal + create_todo(kind=plan, packet=requirements)，事件 goal:created、todo:created"
-  },
   {
    "id": "goals.list",
    "method": "GET",
@@ -141,17 +152,127 @@
        "$ref": "schemas/goal.json"
       }
      },
-     "next_cursor": {
-      "type": [
-       "string",
-       "null"
-      ]
+      "next_cursor": {
+       "type": [
+        "string",
+        "null"
+       ]
+      }
      }
     }
-   }
-  },
-  {
-   "id": "attention",
+   },
+   {
+    "id": "goals.get",
+    "method": "GET",
+    "path": "/api/kernel/goals/{goal_id}",
+    "status": "new",
+    "slice": "P3",
+    "response": {
+     "type": "object",
+     "required": [
+      "ok",
+      "goal"
+     ],
+     "properties": {
+      "ok": {
+       "const": true
+      },
+      "goal": {
+       "$ref": "schemas/goal.json"
+      }
+     }
+    },
+    "errors": [
+     "UNAUTHORIZED",
+     "GOAL_NOT_FOUND"
+    ]
+   },
+   {
+    "id": "goals.clarify",
+    "method": "POST",
+    "path": "/api/kernel/goals/{goal_id}/clarify",
+    "status": "new",
+    "slice": "P3",
+    "note": "追加式澄清：draft 态把 addition 并入 requirements（空行分隔），可多次；frozen 态拒绝",
+    "request": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "addition"
+     ],
+     "properties": {
+      "addition": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 20000
+      }
+     }
+    },
+    "response": {
+     "type": "object",
+     "required": [
+      "ok",
+      "goal"
+     ],
+     "properties": {
+      "ok": {
+       "const": true
+      },
+      "goal": {
+       "$ref": "schemas/goal.json"
+      }
+     }
+    },
+    "errors": [
+     "UNAUTHORIZED",
+     "GOAL_NOT_FOUND",
+     "VALIDATION_FAILED",
+     "GOAL_ALREADY_FROZEN"
+    ],
+    "effect": "UPDATE goals.requirements（追加合并），事件 goal:clarified 同事务落 outbox"
+   },
+   {
+    "id": "goals.freeze",
+    "method": "POST",
+    "path": "/api/kernel/goals/{goal_id}/freeze",
+    "status": "new",
+    "slice": "P3",
+    "note": "锁定需求并触发规划：draft→frozen 同事务建 kind=plan 规划 todo；需求剥离空白后不足 10 字 → REQUIREMENTS_NOT_READY",
+    "request": {
+     "type": "object",
+     "additionalProperties": false,
+     "properties": {}
+    },
+    "response": {
+     "type": "object",
+     "required": [
+      "ok",
+      "goal",
+      "plan_todo_id"
+     ],
+     "properties": {
+      "ok": {
+       "const": true
+      },
+      "goal": {
+       "$ref": "schemas/goal.json"
+      },
+      "plan_todo_id": {
+       "type": "string"
+      }
+     }
+    },
+    "errors": [
+     "UNAUTHORIZED",
+     "GOAL_NOT_FOUND",
+     "SETUP_INCOMPLETE",
+     "REQUIREMENTS_NOT_READY",
+     "GOAL_ALREADY_FROZEN"
+    ],
+    "effect": "UPDATE goals.requirements_state='frozen' + create_todo(kind=plan)，事件 goal:frozen、todo:created 同事务落 outbox"
+   },
+   {
+    "id": "attention",
    "method": "GET",
    "path": "/api/kernel/attention",
    "status": "existing",
@@ -870,83 +991,91 @@
     "FORBIDDEN_NON_LOOPBACK"
    ]
   },
-  {
-   "id": "quickstart.create",
-   "method": "POST",
-   "path": "/api/quickstart/create",
-   "public": "loopback_only",
-   "status": "existing",
-   "note": "自然语言 → 项目 + 会话 + 计划一键入口（免会话，仅回环）；计划启动失败不阻塞：plan=null，用户仍可进入控制台",
-   "request": {
-    "type": "object",
-    "additionalProperties": false,
-    "required": [
-     "description"
-    ],
-    "properties": {
-     "description": {
-      "type": "string",
-      "minLength": 3,
-      "maxLength": 20000
+   {
+    "id": "quickstart.create",
+    "method": "POST",
+    "path": "/api/quickstart/create",
+    "public": "loopback_only",
+    "status": "existing",
+    "note": "自然语言 → 项目 + 会话 + 计划一键入口（免会话，仅回环）；计划走 kernel 金线 create_goal_with_plan（P3），规划失败不阻塞：plan=null，用户仍可进入控制台",
+    "request": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "description"
+     ],
+     "properties": {
+      "description": {
+       "type": "string",
+       "minLength": 3,
+       "maxLength": 20000
+      }
      }
-    }
-   },
-   "response": {
-    "type": "object",
-    "required": [
-     "ok",
-     "token",
-     "project",
-     "project_name",
-     "expires_in",
-     "plan"
-    ],
-    "properties": {
-     "ok": {
-      "const": true
-     },
-     "token": {
-      "type": "string"
-     },
-     "project": {
-      "type": "string"
-     },
-     "project_name": {
-      "type": "string"
-     },
-     "expires_in": {
-      "type": "integer",
-      "minimum": 0
-     },
-     "plan": {
-      "type": [
-       "object",
-       "null"
-      ],
-      "required": [
-       "stages",
-       "tasks"
-      ],
-      "properties": {
-       "stages": {
-        "type": "integer",
-        "minimum": 0
-       },
-       "tasks": {
-        "type": "integer",
-        "minimum": 0
+    },
+    "response": {
+     "type": "object",
+     "required": [
+      "ok",
+      "token",
+      "project",
+      "project_name",
+      "expires_in",
+      "plan"
+     ],
+     "properties": {
+      "ok": {
+       "const": true
+      },
+      "token": {
+       "type": "string"
+      },
+      "project": {
+       "type": "string"
+      },
+      "project_name": {
+       "type": "string"
+      },
+      "expires_in": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "plan": {
+       "type": [
+        "object",
+        "null"
+       ],
+       "required": [
+        "stages",
+        "tasks"
+       ],
+       "properties": {
+        "stages": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "tasks": {
+         "type": "integer",
+         "minimum": 0
+        },
+        "goal_id": {
+         "type": "string",
+         "description": "kernel goal id（P3 内核金线）"
+        },
+        "plan_todo_id": {
+         "type": "string",
+         "description": "kind=plan 规划 todo id（P3 内核金线）"
+        }
        }
       }
      }
-    }
-   },
-   "errors": [
-    "FORBIDDEN_NON_LOOPBACK",
-    "VALIDATION_FAILED",
-    "CREATE_FAILED"
-   ]
-  }
- ],
+    },
+    "errors": [
+     "FORBIDDEN_NON_LOOPBACK",
+     "VALIDATION_FAILED",
+     "CREATE_FAILED"
+    ]
+   }
+  ],
  "$defs": {
   "FleetToml": {
    "type": "object",
