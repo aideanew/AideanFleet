@@ -59,10 +59,16 @@ def extract_diff(text: str) -> dict[str, Any]:
     }
 
 
-def validate_diff(kernel: Kernel, diff: dict[str, Any]) -> list[str]:
-    """返回问题列表；空 = 可应用。add 项复用 plan schema 的关键字段校验。"""
+def validate_diff(kernel: Kernel, diff: dict[str, Any], *, goal_id: str | None = None,
+                  self_id: str | None = None) -> list[str]:
+    """返回问题列表；空 = 可应用。add 项复用 plan schema 的关键字段校验。
+
+    审计修复：给定 goal_id 时 cancel/modify 只能引用本目标内的 todo（原实现查全库，
+    模型输出可跨目标取消他人任务）；不得引用 steer todo 自身。"""
     problems: list[str] = []
-    known = {t["id"]: t for t in kernel.todos()}
+    known = {t["id"]: t for t in (kernel.todos(goal_id) if goal_id else kernel.todos())}
+    if self_id:
+        known.pop(self_id, None)
     for tid in diff.get("cancel", []):
         todo = known.get(tid)
         if todo is None:
@@ -104,7 +110,7 @@ def run_steer_todo(kernel: Kernel, todo_id: str, model_client: Callable[[str], s
         return TurnResult(verdict=st.VERDICT_BLOCKED, note=f"规划模型不可用: {exc}")
     try:
         diff = extract_diff(reply)
-        problems = validate_diff(kernel, diff)
+        problems = validate_diff(kernel, diff, goal_id=todo["goal_id"], self_id=todo_id)
         if problems:
             raise ValueError("；".join(problems))
     except (ValueError, json.JSONDecodeError) as exc:

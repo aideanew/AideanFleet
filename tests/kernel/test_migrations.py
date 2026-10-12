@@ -75,7 +75,10 @@ def test_migrations_packaged_copy_matches_source():
     """Guard：fleet/kernel/_migrations 打包副本与 database/migrations 唯一源一致。"""
     import subprocess
 
-    root = migrate.migrations_dir().parents[2]
+    from pathlib import Path as _Path
+
+    # 审计修复：原写法 migrations_dir().parents[2] 指到仓库上一级，守门永远 skip
+    root = _Path(migrate.__file__).resolve().parents[2]
     source = sorted(p.name for p in (root / "database" / "migrations").glob("*.sql"))
     packaged_dir = root / "fleet" / "kernel" / "_migrations"
     if not packaged_dir.exists():
@@ -85,3 +88,30 @@ def test_migrations_packaged_copy_matches_source():
     for name in source:
         assert (packaged_dir / name).read_text(encoding="utf-8") == \
                (root / "database" / "migrations" / name).read_text(encoding="utf-8"), name
+
+
+def test_failed_migration_rolls_back_atomically(tmp_path, monkeypatch):
+    """审计回归：迁移脚本中途失败必须整体回滚（不留半个迁移、不记版本）。"""
+    import sqlite3
+
+    import pytest
+
+    from fleet.kernel import migrate
+
+    mig = tmp_path / "migs"
+    mig.mkdir()
+    (mig / "001_base.sql").write_text("CREATE TABLE t (a TEXT);\n", encoding="utf-8")
+    (mig / "002_bad.sql").write_text(
+        "ALTER TABLE t ADD COLUMN b TEXT;\nALTER TABLE no_such_table ADD COLUMN x TEXT;\n",
+        encoding="utf-8")
+    monkeypatch.setattr(migrate, "migrations_dir", lambda: mig)
+    conn = sqlite3.connect(tmp_path / "k.db")
+    conn.row_factory = sqlite3.Row
+    with pytest.raises(sqlite3.OperationalError):
+        migrate.run(conn)
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(t)")]
+    assert cols == ["a"], cols  # 002 的第一句也被回滚
+    assert migrate.applied_versions(conn) == {1}
+    (mig / "002_bad.sql").write_text("ALTER TABLE t ADD COLUMN b TEXT;\n", encoding="utf-8")
+    assert migrate.run(conn) == [2]
+    conn.close()

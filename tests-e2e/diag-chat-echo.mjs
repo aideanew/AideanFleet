@@ -1,7 +1,7 @@
 /** 聊天回显链路诊断：解锁 → 发消息 → 抓 WS 下行帧 + dump 聊天 DOM */
 import { chromium } from 'playwright'
 
-const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:5000'
+const BASE = process.env.E2E_BASE_URL || 'http://127.0.0.1:3100'
 const marker = 'diag-' + Date.now()
 const frames = []
 const browser = await chromium.launch()

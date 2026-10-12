@@ -34,7 +34,8 @@ def core_lock():
 def tc(fleet_env):
     from fastapi.testclient import TestClient
 
-    return TestClient(console_server.app)
+    # 回环 Host 头（loopback.browser_context_ok 校验 Host 防 DNS rebinding）
+    return TestClient(console_server.app, base_url="http://127.0.0.1:3100")
 
 
 def _host(monkeypatch, host: str):
@@ -73,6 +74,7 @@ def test_install_rejects_empty_components(tc, monkeypatch):
 
 def test_install_starts_job_and_job_endpoint_follows(tc, monkeypatch, tmp_path):
     _host(monkeypatch, "127.0.0.1")
+    monkeypatch.setattr("platform.machine", lambda: "AMD64")  # 与宿主架构无关（审计：arm64 沙箱曾误判）
     from tests.setup.test_setup_core import _write_fake_npm
 
     fake_npm = _write_fake_npm(tmp_path, fail=True)  # 失败路径：job 终态 failed
@@ -182,3 +184,27 @@ def test_setup_login_launches_console(monkeypatch, tc):
 
     missing = tc.post("/api/setup/login/no-such-harness")
     assert missing.status_code == 404 and missing.json()["reason"] == "HARNESS_NOT_FOUND"
+
+
+# ---- 审计回归：浏览器跨站 / DNS rebinding 不得触达免会话管理面 ----
+
+@pytest.mark.parametrize("headers", [
+    {"Origin": "https://evil.example"},
+    {"Origin": "null"},
+    {"Sec-Fetch-Site": "cross-site"},
+    {"Host": "evil.example:3100"},
+])
+def test_cross_site_browser_requests_rejected(tc, monkeypatch, headers):
+    _host(monkeypatch, "127.0.0.1")
+    response = tc.get("/api/setup/status", headers=headers)
+    assert response.status_code == 403, response.text
+    put = tc.put("/api/config/fleet", content='{"models": {}}',
+                  headers={**headers, "Content-Type": "text/plain"})
+    assert put.status_code == 403, put.text
+
+
+def test_same_origin_browser_request_allowed(tc, monkeypatch):
+    _host(monkeypatch, "127.0.0.1")
+    response = tc.get("/api/setup/status", headers={
+        "Origin": "http://127.0.0.1:3100", "Sec-Fetch-Site": "same-origin"})
+    assert response.status_code == 200, response.text

@@ -46,11 +46,25 @@ def run(conn: sqlite3.Connection) -> list[int]:
         version = int(head)
         if version in done:
             continue
-        with conn:
-            conn.executescript(sql_path.read_text(encoding="utf-8"))
-            conn.execute(
-                "INSERT INTO schema_version (version, applied_at) VALUES (?,?)",
-                (version, datetime.now(timezone.utc).isoformat(timespec="seconds")),
+        # 审计修复：executescript 会先 COMMIT 再以自动提交逐句执行，外层 `with conn` 并不包住脚本；
+        # 中途失败会留下“半个迁移”且无 schema_version 记录，下次启动因重复列永久失败。
+        # 这里把脚本与版本记录放进同一个显式事务，失败整体回滚。
+        script = sql_path.read_text(encoding="utf-8")
+        # PRAGMA（journal_mode 等）不能在事务内生效，先在事务外执行
+        pragmas = [ln for ln in script.splitlines() if ln.strip().upper().startswith("PRAGMA")]
+        script = "\n".join(ln for ln in script.splitlines()
+                           if not ln.strip().upper().startswith("PRAGMA"))
+        for pragma in pragmas:
+            conn.execute(pragma.strip().rstrip(";"))
+        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        try:
+            conn.executescript(
+                "BEGIN;\n" + script + "\n;INSERT INTO schema_version (version, applied_at) VALUES ("
+                + str(version) + ", '" + stamp + "');\nCOMMIT;"
             )
+        except Exception:
+            if conn.in_transaction:
+                conn.rollback()
+            raise
         applied_now.append(version)
     return applied_now

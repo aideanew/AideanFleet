@@ -225,23 +225,35 @@ def _npm_registry(mirror: str, entry: dict[str, Any]) -> list[str]:
 
 def _run_install_job(job_id: str, components: list[str], mirror: str,
                      by_name: dict[str, dict[str, Any]]) -> None:
-    _write_step(job_id, {"event": "job_state", "state": "running"})
-    overall_failed = False
-    for name in components:
-        entry = by_name.get(name)
-        if entry is None:
-            _write_step(job_id, {"event": "step", "component": name, "state": "failed",
-                                 "error_code": "VALIDATION_FAILED", "log_tail": "manifest 中无此组件"})
-            overall_failed = True
-            continue
-        if not _run_component(job_id, entry, mirror):
-            overall_failed = True
-    final_state = "failed" if overall_failed else "succeeded"
-    _write_step(job_id, {"event": "job_state", "state": final_state})
-    with _JOB_LOCK:
-        if _RUNNING_JOB["id"] == job_id:
-            _RUNNING_JOB["id"] = ""
-            _RUNNING_JOB["state"] = final_state
+    final_state = "failed"
+    try:
+        _write_step(job_id, {"event": "job_state", "state": "running"})
+        overall_failed = False
+        for name in components:
+            entry = by_name.get(name)
+            if entry is None:
+                _write_step(job_id, {"event": "step", "component": name, "state": "failed",
+                                     "error_code": "VALIDATION_FAILED", "log_tail": "manifest 中无此组件"})
+                overall_failed = True
+                continue
+            try:
+                ok = _run_component(job_id, entry, mirror)
+            except Exception as exc:  # 审计修复：任何意外异常都落为该组件失败，作业不得卡在 running
+                _write_step(job_id, {"event": "step", "component": name, "state": "failed",
+                                     "error_code": "NPM_INSTALL_FAILED",
+                                     "log_tail": f"{type(exc).__name__}: {exc}"[-4000:]})
+                ok = False
+            if not ok:
+                overall_failed = True
+        final_state = "failed" if overall_failed else "succeeded"
+    finally:
+        try:
+            _write_step(job_id, {"event": "job_state", "state": final_state})
+        finally:
+            with _JOB_LOCK:
+                if _RUNNING_JOB["id"] == job_id:
+                    _RUNNING_JOB["id"] = ""
+                    _RUNNING_JOB["state"] = final_state
 
 
 def _run_component(job_id: str, entry: dict[str, Any], mirror: str) -> bool:
@@ -251,7 +263,7 @@ def _run_component(job_id: str, entry: dict[str, Any], mirror: str) -> bool:
     if not entry.get("default", True) and name not in _explicit():
         _write_step(job_id, {"event": "step", "component": name, "state": "skipped",
                              "error_code": None, "log_tail": "默认不安装（A-10），向导可勾选"})
-        return
+        return True  # 审计修复：按设计跳过不是失败（原 return None 会把整个作业判 failed）
     _write_step(job_id, {"event": "step", "component": name, "state": "running",
                          "error_code": None, "log_tail": ""})
 
@@ -277,6 +289,8 @@ def _run_component(job_id: str, entry: dict[str, Any], mirror: str) -> bool:
                 )
             except FileNotFoundError:
                 return finish("failed", "NPM_INSTALL_FAILED", "npm 不存在")
+            except OSError as exc:  # 审计修复：权限拒绝/杀软拦截等，按安装失败报告
+                return finish("failed", "NPM_INSTALL_FAILED", f"无法启动 npm：{exc}")
             except subprocess.TimeoutExpired:
                 last_log = f"npm 超时（900s）：{registry}"
                 continue

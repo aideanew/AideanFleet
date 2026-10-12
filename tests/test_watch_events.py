@@ -10,8 +10,13 @@ from fleet.notify.triggers import EventType, NotificationTrigger, watch_events_l
 
 
 def _make_trigger(test_results):
-    """构造触发器：TASK_COMPLETED 开启 + 测试回调（不真发邮件）"""
-    trigger = NotificationTrigger()
+    """构造触发器：TASK_COMPLETED 开启 + 测试回调（不真发邮件）。
+
+    配置文件落临时目录：默认路径 config/notifications.json 是已跟踪文件，
+    set_enabled 会回写它（Linux 上 CRLF→LF 造成 F-11 复发）。"""
+    import tempfile
+
+    trigger = NotificationTrigger(str(Path(tempfile.mkdtemp()) / "notifications.json"))
     trigger.set_enabled(EventType.TASK_COMPLETED, True)
 
     def test_callback(subject, body):

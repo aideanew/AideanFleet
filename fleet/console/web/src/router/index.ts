@@ -15,6 +15,9 @@ export const MENU = [
   { path: '/approvals', name: 'approvals', title: '审批中心', icon: '⚖', hint: '红线操作与首次发信审批' },
   { path: '/cost', name: 'cost', title: '成本面板', icon: '◎', hint: 'Token 用量与三级预算' },
   { path: '/history', name: 'history', title: '历史', icon: '≡', hint: '历史任务：谁执行、谁审查、多久' },
+  // 审计修复：S1/S2 新页面此前只有路由没有入口（只能手敲 URL 或经 fleet up --open 到达）；按约定追加在末尾。
+  { path: '/tasks', name: 'tasks', title: '任务看板', icon: '▤', hint: '新内核：待你决定 / 运行中 / 卡住了 / 刚完成' },
+  { path: '/setup', name: 'setup', title: '安装向导', icon: '⚙', hint: '一键安装运行环境、填模型密钥、登录执行体' },
 ] as const
 
 /** 冻结的七项一级大纲（UI-02 契约，供回归断言使用） */

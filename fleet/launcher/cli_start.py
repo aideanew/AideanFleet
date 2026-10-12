@@ -8,6 +8,7 @@ import sys
 from typing import Optional
 
 from .launch_core import LaunchRequest, launch_core, _configure_stdio
+from ..core.ports import DEFAULT_CONSOLE_PORT
 
 #: 项目路径缺省时的默认项目名（保持旧行为）
 _FALLBACK_PROJECT_NAME = "AideanFleet"
