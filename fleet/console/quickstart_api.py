@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import re
 import time
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -119,11 +120,14 @@ def quickstart_status(request: Request):
                       if c.get("name") in cli_names and c.get("state") == "installed"]
     has_cli = len(installed_clis) > 0
 
-    # API key
-    key_vars = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "AGNES_API_KEY",
-                "MODELSCOPE_API_KEY", "BIGMODEL_API_KEY", "DEEPSEEK_API_KEY"]
-    import os
-    has_api_key = any(os.environ.get(v) for v in key_vars)
+    # API key → 规划器就绪单源（P3.3）
+    # 字段名 has_api_key 保留（契约 quickstart.status），语义升级为 planner_status 三态判定
+    # （模型 + 密钥 + 绑定一体），fleet.toml 配置的密钥不再漏检。
+    try:
+        from fleet.cli.clients import planner_status
+        has_api_key = bool(planner_status()["ready"])
+    except Exception:
+        has_api_key = False
 
     # 已有项目
     try:
@@ -204,17 +208,23 @@ async def quickstart_create(request: Request):
     # 3. 创建会话
     token, ttl = create_session(project_id)
 
-    # 4. 尝试启动计划（通过 intake）
+    # 4. 计划走 kernel 金线（P3.3）：create_goal_with_plan 同事务出 kind=plan 规划 todo。
+    # 旧 intake 模板链退役：模板三阶段是假计划，不具执行意义；
+    # 规划失败不阻塞——用户至少能进入控制台（plan=null，契约同前）。
     plan_result = None
     try:
-        from fleet.manager import intake
-        result = intake.start_project(project_id, project_id, str(paths().root), description)
+        from fleet.console.kernel_api import _kernel, _slug, _workspace_roots
+
+        workspace = str(Path(_workspace_roots()[0]) / _slug(project_name))
+        goal_id, plan_todo_id = _kernel().create_goal_with_plan(
+            project_name, description, workspace)
         plan_result = {
-            "stages": result.get("stages", 0),
-            "tasks": result.get("tasks", 0),
+            "goal_id": goal_id,
+            "plan_todo_id": plan_todo_id,
+            "stages": 0,  # 计划尚未拆解：规划 todo 待 worker 认领后产出
+            "tasks": 0,
         }
     except Exception:
-        # 计划启动失败不阻塞——用户至少能进入控制台
         plan_result = None
 
     return {
