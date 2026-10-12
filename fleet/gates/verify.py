@@ -289,6 +289,10 @@ def run_command(command: str, cwd: str | Path, timeout: int | None = None) -> tu
     `{python}` 占位符替换为本进程的 sys.executable：机器门必须跑在与 Fleet 相同的
     解释器环境里（裸 `python` 在 Windows 上常解析到 Microsoft Store 占位 stub，
     会让验收命令静默失败——A5 真实验收的可靠性前提）。
+
+    PYTHONPATH 注入仓库根：`{python} -m fleet.gates.*` 形态的验收命令在
+    workspace cwd 下必须能 import fleet（仓库检出未 pip install 时唯一可靠途径；
+    此前靠 tests/rel/conftest.py 收集期偶然注入 PYTHONPATH，单独跑 tests/core 即翻车）。
     """
     import sys as _sys
 
@@ -296,6 +300,11 @@ def run_command(command: str, cwd: str | Path, timeout: int | None = None) -> tu
 
     resolved = str(command).replace("{python}", _sys.executable)
     limit = timeout or retry.policy().timeout_seconds
+    env = dict(os.environ)
+    repo_root = str(Path(__file__).resolve().parents[2])  # fleet/gates/verify.py → 仓库根
+    existing = env.get("PYTHONPATH", "")
+    if repo_root not in existing.split(os.pathsep):
+        env["PYTHONPATH"] = repo_root + (os.pathsep + existing if existing else "")
     try:
         completed = subprocess.run(
             resolved,
@@ -304,6 +313,7 @@ def run_command(command: str, cwd: str | Path, timeout: int | None = None) -> tu
             capture_output=True,
             text=True,
             timeout=limit,
+            env=env,
         )
     except subprocess.TimeoutExpired:
         return None, f"TIMEOUT：verify_cmd 超过 {limit}s 未结束"
