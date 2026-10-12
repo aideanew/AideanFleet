@@ -74,10 +74,15 @@ def _extract_project_id(description: str) -> str:
     return f"proj-{hashlib.md5(description.encode()).hexdigest()[:8]}"
 
 
+# 标点清理模式：\x22/\x27 = ASCII 双/单引号。
+# （原实现的裸引号会截断 raw string、靠隐式拼接拼回，触发 SyntaxWarning，故改用转义写法）
+_PUNCT_RE = re.compile(r"[，。、！？；：\x22\x27（）()\[\]{}【】《》\s]+")
+
+
 def _extract_project_name(description: str) -> str:
-    """从描述中提取人类可读的项目名。"""
+    """从自然语言描述中提取人类可读的项目名。"""
     # 取前 20 个字符，去掉标点
-    clean = re.sub(r"[，。、！？；：""''（）()\[\]{}【】《》\s]+", " ", description).strip()
+    clean = _PUNCT_RE.sub(" ", description).strip()
     if len(clean) <= 20:
         return clean
     return clean[:20] + "…"
@@ -168,6 +173,8 @@ async def quickstart_create(request: Request):
     description = str(body.get("description", "")).strip()
     if not description or len(description) < 3:
         return _error("VALIDATION_FAILED", "请描述你想做的产品（至少 3 个字）", 422)
+    if len(description) > 20000:
+        return _error("VALIDATION_FAILED", "描述过长（最多 20000 字）", 422)
 
     from fleet.core import db as fleet_db
     from fleet.console.server import create_session
