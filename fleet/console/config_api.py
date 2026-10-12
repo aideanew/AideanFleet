@@ -72,14 +72,18 @@ def _write_secret(env_name: str, value: str) -> None:
         pass
 
 
-def _looks_like_secret_value(value: str) -> bool:
-    if re.search(r"sk-[A-Za-z0-9]{20,}", value):
+_SECRET_SHAPE_RE = re.compile(r"sk-[A-Za-z0-9]{20,}")
+
+
+def _plaintext_secret_shaped(value: str) -> bool:
+    """窄口径密钥形态（与 fleet_toml._reject_secret 同源）：sk- 20+ 或私钥块。
+
+    P1.1 修复：原高熵启发式（_looks_like_secret_value）误伤真实 base_url / model_id
+    （如 https://api.openai.com/v1、claude-sonnet-4-20250514 均被误判），真实用户保存必 422。
+    """
+    if _SECRET_SHAPE_RE.search(value):
         return True
-    # 长度 ≥20 且高熵（大小写+数字混杂）视为疑似密钥
-    if len(value) >= 20 and re.search(r"[a-z]", value) and re.search(r"[A-Z0-9]", value):
-        unique = len(set(value))
-        return unique >= max(8, len(value) // 2)
-    return False
+    return "-----BEGIN" in value and "PRIVATE KEY-----" in value
 
 
 # ---------------------------------------------------------------------------
@@ -87,27 +91,28 @@ def _looks_like_secret_value(value: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _config_payload(cfg: fleet_toml.FleetConfig) -> dict:
+    """config.fleet.get/put 共用的配置投影（P1.1 修复：put 成功路径曾误调
+    config_fleet_get() 缺 request 参数，成功保存必 TypeError 500——从未被测试覆盖）。"""
+    return {
+        "workspace": {"allowed_roots": cfg.allowed_roots},
+        "models": {
+            name: {"base_url": m.base_url, "model_id": m.model_id,
+                   "api_key_env": m.api_key_env, "priority": m.priority}
+            for name, m in cfg.models.items()
+        },
+        "roles": {name: {"harness": r.harness, "models": r.models}
+                  for name, r in cfg.roles.items()},
+        "runtime": {"scheduler": cfg.scheduler, "lease_minutes": cfg.lease_minutes},
+    }
+
+
 def config_fleet_get(request: Request):
     if not _loopback_ok(request):
         return JSONResponse({"ok": False, "error": "只能在安装 AideanFleet 的电脑上打开控制台",
                              "reason": "FORBIDDEN_NON_LOOPBACK"}, status_code=403)
     cfg = fleet_toml.load_config()
-    payload = {
-        "ok": True,
-        "config": {
-            "workspace": {"allowed_roots": cfg.allowed_roots},
-            "models": {
-                name: {"base_url": m.base_url, "model_id": m.model_id,
-                       "api_key_env": m.api_key_env, "priority": m.priority}
-                for name, m in cfg.models.items()
-            },
-            "roles": {name: {"harness": r.harness, "models": r.models}
-                      for name, r in cfg.roles.items()},
-            "runtime": {"scheduler": cfg.scheduler, "lease_minutes": cfg.lease_minutes},
-        },
-        "sources": cfg.sources,
-    }
-    return payload
+    return {"ok": True, "config": _config_payload(cfg), "sources": cfg.sources}
 
 
 async def config_fleet_put(request: Request):
@@ -127,6 +132,8 @@ async def config_fleet_put(request: Request):
     for name, entry in models.items():
         if not re.match(r"^[a-z0-9][a-z0-9_-]{0,31}$", str(name)):
             return _error("VALIDATION_FAILED", f"模型名不合法: {name}", 422)
+        if entry is None:  # P1.1 merge 语义：null = 删除标记，跳过校验
+            continue
         base_url = str(entry.get("base_url") or "")
         if not base_url.startswith(("http://", "https://")):
             return _error("VALIDATION_FAILED", f"{name}.base_url 必须以 http(s):// 开头", 422,
@@ -135,13 +142,17 @@ async def config_fleet_put(request: Request):
         if not ENV_NAME_RE.match(api_key_env):
             return _error("VALIDATION_FAILED", f"{name}.api_key_env 形如 [A-Z][A-Z0-9_]", 422,
                           {"field": "api_key_env"})
-        if _looks_like_secret_value(str(entry.get("model_id") or "")) or \
-                _looks_like_secret_value(base_url):
+        if _plaintext_secret_shaped(str(entry.get("model_id") or "")) or \
+                _plaintext_secret_shaped(base_url):
             return _error("PLAINTEXT_SECRET", "拒绝形似密钥的值写入 fleet.toml", 422)
 
     allowed_roots = [str(r) for r in (body.get("workspace") or {}).get("allowed_roots", [])]
     if not allowed_roots:
-        allowed_roots = fleet_toml.load_config().allowed_roots or []
+        # P1.3 单源回退：toml（含 env 覆盖）→ 旧 .env basic → <data_dir>/workspaces，
+        # 新装机器不带 workspace 字段保存模型不再 422。
+        from fleet.core import roots as workspace_roots
+
+        allowed_roots = workspace_roots.current()
     runtime = body.get("runtime") or {}
     scheduler = str(runtime.get("scheduler") or fleet_toml.load_config().scheduler)
     if scheduler not in ("auto", "step", "off"):
@@ -149,25 +160,60 @@ async def config_fleet_put(request: Request):
     lease_minutes = int(runtime.get("lease_minutes") or fleet_toml.load_config().lease_minutes)
 
     current = fleet_toml.load_config()
+
+    # —— P1.1 merge 语义：字段提及的对象 upsert；null = 删除；未提及 = 保留 ——
+    # 修复：旧实现全量替换，前端只提交单个模型时清空其余配置、roles:{} 抹掉 planner 绑定。
+    merged_models: dict[str, fleet_toml.ModelCfg] = {
+        name: fleet_toml.ModelCfg(
+            name=m.name, base_url=m.base_url, model_id=m.model_id,
+            api_key_env=m.api_key_env, priority=m.priority)
+        for name, m in current.models.items()
+    }
+    for name, entry in models.items():
+        if entry is None:  # null = 删除该模型
+            merged_models.pop(str(name), None)
+            continue
+        merged_models[str(name)] = fleet_toml.ModelCfg(
+            name=str(name), base_url=str(entry.get("base_url", "")),
+            model_id=str(entry.get("model_id", "")),
+            api_key_env=str(entry.get("api_key_env", "")),
+            priority=int(entry.get("priority", 10)),
+        )
+    removed_models = set(current.models) - set(merged_models)
+
+    merged_roles: dict[str, fleet_toml.RoleCfg] = {
+        name: fleet_toml.RoleCfg(name=r.name, harness=list(r.harness), models=list(r.models))
+        for name, r in current.roles.items()
+    }
+    for name, entry in (body.get("roles") or {}).items():
+        if entry is None:  # null = 删除该角色
+            merged_roles.pop(str(name), None)
+            continue
+        merged_roles[str(name)] = fleet_toml.RoleCfg(
+            name=str(name), harness=[str(h) for h in entry.get("harness", [])],
+            models=[str(m) for m in entry.get("models", [])])
+    # 删除模型时同步清理角色引用，防止悬空模型名
+    if removed_models:
+        for role in merged_roles.values():
+            role.models = [m for m in role.models if m not in removed_models]
+
+    # —— P1.1 planner 保底绑定：规划角色无可用模型时自动绑最高优先级模型 ——
+    # 保证"保存模型 → 可建目标"金线（小白零操作）；显式配置过 planner.models 的不动。
+    planner = merged_roles.get("planner")
+    if merged_models and (planner is None or not planner.models):
+        best = min(merged_models.values(), key=lambda m: m.priority)
+        if planner is None:
+            planner = fleet_toml.RoleCfg(name="planner")
+            merged_roles["planner"] = planner
+        planner.models = [best.name]
+
     new_cfg = fleet_toml.FleetConfig(
         path=None, allowed_roots=allowed_roots,
-        models={
-            str(name): fleet_toml.ModelCfg(
-                name=str(name), base_url=str(entry.get("base_url", "")),
-                model_id=str(entry.get("model_id", "")),
-                api_key_env=str(entry.get("api_key_env", "")),
-                priority=int(entry.get("priority", 10)),
-            ) for name, entry in (models or {}).items()
-        },
-        roles={
-            str(name): fleet_toml.RoleCfg(name=str(name),
-                                          harness=[str(h) for h in entry.get("harness", [])],
-                                          models=[str(m) for m in entry.get("models", [])])
-            for name, entry in (body.get("roles") or {}).items()
-        },
+        models=merged_models,
+        roles=merged_roles,
         scheduler=scheduler, lease_minutes=lease_minutes, sources={},
     )
-    # 保持 workspace 白名单语义：至少一条
+    # 防御性兜底：roots.current() 理论上永不返回空
     if not new_cfg.allowed_roots:
         return _error("VALIDATION_FAILED", "workspace.allowed_roots 至少一条", 422)
 
@@ -180,7 +226,7 @@ async def config_fleet_put(request: Request):
             return _error("PLAINTEXT_SECRET", str(exc), 422)
         return _error("INTERNAL", f"写入 fleet.toml 失败：{exc}", 500)
     reloaded = fleet_toml.load_config()
-    return {"ok": True, "config": config_fleet_get()["config"],
+    return {"ok": True, "config": _config_payload(reloaded),
             "path": str(target),
             "sources": {**reloaded.sources, "allowed_roots": "toml"}}
 

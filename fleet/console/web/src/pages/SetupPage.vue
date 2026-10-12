@@ -131,14 +131,14 @@ async function saveModelAndKey() {
   keyError.value = ''
   try {
     const config = {
-      workspace: { allowed_roots: [] as string[] },
+      // P1.1 merge 语义：只提交要保存的模型；workspace/roles 未提及即保留，
+      // 后端缺省 allowed_roots（data/workspaces）并保底绑定 planner——新装机器不再 422/409。
       models: {
         [modelName.value || 'default']: {
           base_url: baseUrl.value, model_id: modelId.value,
           api_key_env: apiKeyEnv.value || 'CUSTOM_API_KEY',
         },
       },
-      roles: {}, runtime: {},
     }
     if (modelName.value) {
       await request('/api/config/fleet', {
