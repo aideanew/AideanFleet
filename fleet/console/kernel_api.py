@@ -20,7 +20,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from fleet.core.paths import paths
 from fleet.kernel import store
 from fleet.kernel import Kernel, KernelError
-from fleet.manager.intake import _allowed_roots, _workspace_allowed
 
 router = APIRouter(prefix="/api/kernel", tags=["kernel"])
 
@@ -91,16 +90,14 @@ def _store_idempotent(request: Request, payload: dict) -> None:
 
 
 def _workspace_roots() -> list[str]:
-    """workspace 白名单：fleet.toml 优先（新链路），缺失回退旧 .env basic 段。"""
-    try:
-        from fleet.core import fleet_toml
+    """workspace 白名单单源（P1.3）：fleet.core.roots.current()。
 
-        cfg = fleet_toml.load_config()
-        if cfg.allowed_roots:
-            return [str(r) for r in cfg.allowed_roots]
-    except Exception:
-        pass
-    return _allowed_roots()
+    env > fleet.toml > 旧 .env basic > <data_dir>/workspaces 缺省；
+    历史上这里回退 intake._allowed_roots（仓库根），安装器部署写保护，已收敛。
+    """
+    from fleet.core import roots as workspace_roots
+
+    return workspace_roots.current()
 
 
 def _workspace_ok(workspace: str) -> bool:

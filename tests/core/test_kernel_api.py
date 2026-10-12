@@ -28,7 +28,9 @@ def client(fleet_env, project, monkeypatch):
         '[roles.planner]\n'
         'models = ["fake"]\n\n'
         '[workspace]\n'
-        'allowed_roots = ["E:/Demo"]\n',
+        # fleet-root 也要在白名单：P1.3 统一后 intake 不再无视 toml 隐式放行仓库根，
+        # 旧启动指令路径（test_chat_routes_to_steer）的 workspace 在 fleet-root 下。
+        f'allowed_roots = ["E:/Demo", "{fleet_env["root"].as_posix()}"]\n',
         encoding="utf-8",
     )
     monkeypatch.setenv("FAKE_PLANNER_KEY", "k" * 8)

@@ -44,28 +44,14 @@ _LAUNCH_PATTERNS = [
 
 
 def _allowed_roots() -> list[str]:
-    """ALLOWED_ROOTS 白名单：.env basic 段优先，回退系统环境变量。"""
-    from ..core import config as fleet_config
+    """ALLOWED_ROOTS 白名单（P1.3 起单源 fleet.core.roots，保留旧签名兼容）。
 
-    try:
-        cfg = fleet_config.load("basic") or {}
-        raw = cfg.get("allowed_roots", "")
-    except Exception:
-        raw = ""
-    roots: list[str] = []
-    if isinstance(raw, list):
-        roots = [str(r) for r in raw if str(r).strip()]
-    elif isinstance(raw, str) and raw.strip():
-        roots = [r.strip() for r in raw.split(",") if r.strip()]
-    if not roots:
-        env_roots = os.environ.get("FLEET_ALLOWED_ROOTS", "")
-        roots = [r.strip() for r in env_roots.split(",") if r.strip()]
-    if not roots:
-        # F2 修复：未配置时默认允许本仓库根目录，首次安装不再"intake 直接报错"。
-        from ..core.paths import paths
+    统一回退链：FLEET_ALLOWED_ROOTS 环境变量 > fleet.toml > 旧 .env basic 段
+    > <data_dir>/workspaces 缺省。原"回退仓库根"（F2）在安装器部署下写保护，已废弃。
+    """
+    from ..core import roots as workspace_roots
 
-        roots = [str(paths().root)]
-    return roots
+    return workspace_roots.current()
 
 
 def _workspace_allowed(workspace: str) -> bool:
