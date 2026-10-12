@@ -157,6 +157,20 @@ def load_config(path: str | Path | None = None) -> FleetConfig:
     )
 
 
+def lease_seconds_or_default() -> int:
+    """[runtime].lease_minutes（分钟，设置页 UI 旋钮）→ 内核租约秒数。
+
+    修复断链9：此前 5 处 Kernel 构造点全部不传 lease_seconds，内核恒用
+    DEFAULT_LEASE_SECONDS（900s），设置页的 lease_minutes 旋钮空转。
+    默认 15min → 900s，与 fleet/kernel/kernel.py DEFAULT_LEASE_SECONDS
+    一致（tests/core/test_lease_wiring.py 锁定该等式）。
+    """
+    try:
+        return int(load_config().lease_minutes) * 60
+    except Exception:
+        return 900
+
+
 def print_config_source(cfg: FleetConfig) -> str:
     """doctor --config 输出：生效值 + 来源（env/toml/default）。"""
     lines = [f"fleet.toml: {cfg.path if cfg.path else '（未找到，使用默认 + 环境变量）'}", ""]

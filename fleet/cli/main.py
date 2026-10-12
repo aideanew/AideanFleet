@@ -23,6 +23,7 @@ from pathlib import Path
 
 from fleet.core.paths import paths
 
+from fleet.core import fleet_toml
 from fleet.core.ports import DEFAULT_CONSOLE_PORT
 from fleet.cli.pidutil import write_pidfile, read_pidfile, stop_fleet, pidfile_path
 
@@ -322,7 +323,8 @@ def cmd_worker(args: argparse.Namespace) -> int:
     from fleet.runner import run_loop
 
     _configure_stdio()
-    kernel = Kernel(paths().data_dir / "kernel.db")
+    kernel = Kernel(paths().data_dir / "kernel.db",
+                    lease_seconds=fleet_toml.lease_seconds_or_default())
     worker = f"worker-{os.getpid()}"
 
     # F-01/F-06 修复（ADR-004 选项 C）：planner_client 与 model_for 在 fleet/cli 组装注入
@@ -356,7 +358,8 @@ def cmd_worker(args: argparse.Namespace) -> int:
 def cmd_next(args: argparse.Namespace) -> int:
     from fleet.kernel import Kernel
 
-    kernel = Kernel(paths().data_dir / "kernel.db")
+    kernel = Kernel(paths().data_dir / "kernel.db",
+                    lease_seconds=fleet_toml.lease_seconds_or_default())
     # --agent 是认领者身份（哪个宿主/执行体来干活），不按角色过滤：
     # todo 的 role 决定 harness 链，host 模式下任何可认领 todo 都可以交给当前会话。
     claimables = kernel.claimable()
@@ -382,7 +385,8 @@ def cmd_writeback(args: argparse.Namespace) -> int:
     from fleet.kernel.state import TurnResult
     from fleet.runner import gates
 
-    kernel = Kernel(paths().data_dir / "kernel.db")
+    kernel = Kernel(paths().data_dir / "kernel.db",
+                    lease_seconds=fleet_toml.lease_seconds_or_default())
     todo = kernel.get_todo(args.todo)
     agent = args.agent or "host"
     if todo["claimed_by"] and todo["claimed_by"] != agent:

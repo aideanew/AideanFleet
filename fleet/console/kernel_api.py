@@ -19,6 +19,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, JSONResponse
 
+from fleet.core import fleet_toml
 from fleet.core.paths import paths
 from fleet.kernel import store
 from fleet.kernel import Kernel, KernelError
@@ -34,7 +35,8 @@ EVIDENCE_FILES: dict[str, str] = {
 
 
 def _kernel() -> Kernel:
-    return Kernel(paths().data_dir / "kernel.db")
+    return Kernel(paths().data_dir / "kernel.db",
+                  lease_seconds=fleet_toml.lease_seconds_or_default())
 
 
 def _error(reason: str, message: str, status: int, details: dict | None = None):

@@ -643,9 +643,11 @@ async def api_control_confirm(request: Request):
 
 
 def _kernel_instance():
+    from fleet.core import fleet_toml
     from fleet.kernel import Kernel
 
-    return Kernel(paths().data_dir / 'kernel.db')
+    return Kernel(paths().data_dir / 'kernel.db',
+                  lease_seconds=fleet_toml.lease_seconds_or_default())
 
 
 def _steer_from_chat(message: str) -> str | None:
