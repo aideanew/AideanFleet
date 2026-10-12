@@ -799,6 +799,152 @@
     "WORKSPACE_NOT_ALLOWED"
    ],
    "public": "loopback_only"
+  },
+  {
+   "id": "quickstart.status",
+   "method": "GET",
+   "path": "/api/quickstart/status",
+   "public": "loopback_only",
+   "status": "existing",
+   "note": "零基础向导的环境就绪状态（免会话，仅回环）：前端据此决定展示安装/配置/建项目哪一步",
+   "response": {
+    "type": "object",
+    "required": [
+     "ok",
+     "has_python",
+     "has_node",
+     "has_npm",
+     "has_git",
+     "has_cli",
+     "installed_clis",
+     "has_api_key",
+     "has_project",
+     "projects_count",
+     "frontend_built",
+     "ready"
+    ],
+    "properties": {
+     "ok": {
+      "const": true
+     },
+     "has_python": {
+      "type": "boolean"
+     },
+     "has_node": {
+      "type": "boolean"
+     },
+     "has_npm": {
+      "type": "boolean"
+     },
+     "has_git": {
+      "type": "boolean"
+     },
+     "has_cli": {
+      "type": "boolean"
+     },
+     "installed_clis": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "has_api_key": {
+      "type": "boolean"
+     },
+     "has_project": {
+      "type": "boolean"
+     },
+     "projects_count": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "frontend_built": {
+      "type": "boolean"
+     },
+     "ready": {
+      "type": "boolean"
+     }
+    }
+   },
+   "errors": [
+    "FORBIDDEN_NON_LOOPBACK"
+   ]
+  },
+  {
+   "id": "quickstart.create",
+   "method": "POST",
+   "path": "/api/quickstart/create",
+   "public": "loopback_only",
+   "status": "existing",
+   "note": "自然语言 → 项目 + 会话 + 计划一键入口（免会话，仅回环）；计划启动失败不阻塞：plan=null，用户仍可进入控制台",
+   "request": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "description"
+    ],
+    "properties": {
+     "description": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 20000
+     }
+    }
+   },
+   "response": {
+    "type": "object",
+    "required": [
+     "ok",
+     "token",
+     "project",
+     "project_name",
+     "expires_in",
+     "plan"
+    ],
+    "properties": {
+     "ok": {
+      "const": true
+     },
+     "token": {
+      "type": "string"
+     },
+     "project": {
+      "type": "string"
+     },
+     "project_name": {
+      "type": "string"
+     },
+     "expires_in": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "plan": {
+      "type": [
+       "object",
+       "null"
+      ],
+      "required": [
+       "stages",
+       "tasks"
+      ],
+      "properties": {
+       "stages": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "tasks": {
+        "type": "integer",
+        "minimum": 0
+       }
+      }
+     }
+    }
+   },
+   "errors": [
+    "FORBIDDEN_NON_LOOPBACK",
+    "VALIDATION_FAILED",
+    "CREATE_FAILED"
+   ]
   }
  ],
  "$defs": {

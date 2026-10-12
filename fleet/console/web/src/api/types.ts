@@ -137,7 +137,7 @@ export interface ErrorBody {
   retryable?: boolean;
 }
 
-export type ErrorCode = "UNAUTHORIZED" | "FORBIDDEN_NON_LOOPBACK" | "VALIDATION_FAILED" | "NOT_FOUND" | "GOAL_NOT_FOUND" | "TODO_NOT_FOUND" | "JOB_NOT_FOUND" | "MODEL_NOT_FOUND" | "HARNESS_NOT_FOUND" | "ILLEGAL_TRANSITION" | "DECISION_ALREADY_MADE" | "WORKSPACE_NOT_ALLOWED" | "SETUP_INCOMPLETE" | "INSTALL_IN_PROGRESS" | "PLATFORM_UNSUPPORTED" | "HARNESS_NOT_INSTALLED" | "SECRET_NAME_NOT_DECLARED" | "SECRET_MISSING" | "PLAINTEXT_SECRET" | "IDEMPOTENCY_CONFLICT" | "INTERNAL";
+export type ErrorCode = "UNAUTHORIZED" | "FORBIDDEN_NON_LOOPBACK" | "VALIDATION_FAILED" | "NOT_FOUND" | "GOAL_NOT_FOUND" | "TODO_NOT_FOUND" | "JOB_NOT_FOUND" | "MODEL_NOT_FOUND" | "HARNESS_NOT_FOUND" | "ILLEGAL_TRANSITION" | "DECISION_ALREADY_MADE" | "WORKSPACE_NOT_ALLOWED" | "SETUP_INCOMPLETE" | "INSTALL_IN_PROGRESS" | "PLATFORM_UNSUPPORTED" | "HARNESS_NOT_INSTALLED" | "SECRET_NAME_NOT_DECLARED" | "SECRET_MISSING" | "PLAINTEXT_SECRET" | "IDEMPOTENCY_CONFLICT" | "CREATE_FAILED" | "INTERNAL";
 
 export type InstallStepErrorCode = "DOWNLOAD_FAILED" | "CHECKSUM_MISMATCH" | "NETWORK_BLOCKED" | "DISK_FULL" | "PERMISSION_DENIED" | "NPM_INSTALL_FAILED" | "VERSION_TOO_OLD" | "POST_INSTALL_NOT_ON_PATH" | "UNSUPPORTED_ARCH";
 
@@ -310,6 +310,37 @@ export interface ConfigFleetGetResponse {
 export interface ConfigFleetPutResponse {
   ok: true;
   config: FleetToml;
+}
+
+export interface QuickstartStatusResponse {
+  ok: true;
+  has_python: boolean;
+  has_node: boolean;
+  has_npm: boolean;
+  has_git: boolean;
+  has_cli: boolean;
+  installed_clis: Array<string>;
+  has_api_key: boolean;
+  has_project: boolean;
+  projects_count: number;
+  frontend_built: boolean;
+  ready: boolean;
+}
+
+export interface QuickstartCreateRequest {
+  description: string;
+}
+
+export interface QuickstartCreateResponse {
+  ok: true;
+  token: string;
+  project: string;
+  project_name: string;
+  expires_in: number;
+  plan: {
+  stages: number;
+  tasks: number;
+} | null;
 }
 
 /* ---------------- 旧链路类型（未经契约收敛，见 types.legacy.ts） ---------------- */
