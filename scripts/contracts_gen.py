@@ -264,7 +264,8 @@ def main() -> int:
         print("OK types.ts 与契约唯一源一致")
         return 0
 
-    OUT_FILE.write_text(content, encoding="utf-8")
+    # 显式 LF：跨平台字节一致（Windows 默认写 CRLF，靠 git 规范化会产生噪音）
+    OUT_FILE.write_text(content, encoding="utf-8", newline="\n")
     print(f"written {OUT_FILE} ({len(content)} chars)")
     return 0
 
