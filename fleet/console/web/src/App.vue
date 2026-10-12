@@ -10,6 +10,7 @@
  */
 import { onMounted, ref, watch } from 'vue'
 import LockScreen from '@/layout/LockScreen.vue'
+import WelcomeWizard from '@/components/WelcomeWizard.vue'
 import TopBar from '@/layout/TopBar.vue'
 import SideNav from '@/layout/SideNav.vue'
 import ProgressRail from '@/layout/ProgressRail.vue'
@@ -24,6 +25,7 @@ const execution = useExecutionStore()
 const ws = useWebSocket()
 
 const booting = ref(true)
+const showWizard = ref(false)
 const navCollapsed = ref(false)
 const railCollapsed = ref(false)
 const settingsOpen = ref(false)
@@ -56,7 +58,20 @@ watch(
 onMounted(async () => {
   const restored = await auth.restore()
   booting.value = false
-  if (restored) afterUnlock()
+  if (restored) {
+    afterUnlock()
+  } else {
+    // 首次访问：检查是否有项目，无项目时显示欢迎向导
+    try {
+      const { api } = await import('@/api/client')
+      const qs = await api.quickstartStatus()
+      if (!qs.has_project && !qs.ok) {
+        showWizard.value = true
+      }
+    } catch {
+      // quickstart API 不可用，走原有锁屏
+    }
+  }
 })
 
 async function onLock(): Promise<void> {
@@ -70,7 +85,8 @@ async function onLock(): Promise<void> {
     <p>正在连接控制台…</p>
   </div>
 
-  <LockScreen v-else-if="!auth.unlocked" />
+  <WelcomeWizard v-else-if="showWizard" @enter-console="showWizard = false" />
+  <LockScreen v-else-if="!auth.unlocked" @new-project="showWizard = true" />
 
   <div v-else class="shell">
     <TopBar @open-settings="settingsOpen = true" @lock="onLock" />

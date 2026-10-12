@@ -36,6 +36,10 @@ _LAUNCH_PATTERNS = [
         r"project\s*[:：]\s*([A-Za-z0-9_\-]+)[\s\S]{0,160}?([A-Za-z]:\\(?:[\w.\-]+\\)+[\w.\-]+)",
         re.IGNORECASE,
     ),
+    # 自然语言模式："开发一个XXX"/"帮我做XXX"/"我想做一个XXX" → 项目名从描述提取
+    re.compile(
+        r"(?:开发|帮我做|我想做|做一个|做一个|搭建|创建|实现)\s*(?:一个|一款|一种)?\s*([\u4e00-\u9fa5A-Za-z0-9_\-]{2,20})"
+    ),
 ]
 
 
@@ -80,10 +84,16 @@ def detect_launch_intent(message: str) -> tuple[str, str] | None:
         match = pattern.search(message or "")
         if not match:
             continue
-        pid = re.sub(r"[^A-Za-z0-9_\-]", "", match.group(1))
-        workspace = os.path.normpath((match.group(2) or "").strip().rstrip("\\/"))
+        raw_name = match.group(1)
+        pid = re.sub(r"[^A-Za-z0-9_\-]", "", raw_name)
         if not pid:
-            continue
+            # 中文名 → 用 hash 生成可用 ID
+            import hashlib
+            pid = f"proj-{hashlib.md5(raw_name.encode()).hexdigest()[:8]}"
+        try:
+            workspace = os.path.normpath((match.group(2) or "").strip().rstrip("\\/"))
+        except IndexError:
+            workspace = ""
         if not workspace:
             roots = _allowed_roots()
             if not roots:

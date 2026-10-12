@@ -321,7 +321,7 @@ async def _event_pump() -> None:
 # ---------------------------------------------------------------------------
 
 # /api/setup/* 免会话但仅回环（TASK-203，identity B1：路由内再校验来源地址）
-_EXEMPT_PREFIXES = ("/api/setup/", "/api/config/fleet")
+_EXEMPT_PREFIXES = ("/api/setup/", "/api/config/fleet", "/api/quickstart/")
 _EXEMPT_PATHS = {"/api/health", "/api/session", "/api/projects/names", "/api/launch-resolve", "/api/launch-event", "/api/setup/status"}
 # launch-event 豁免会话：契约 docs/契约.md §4 与 派工3 T5/T6 要求启动器（Hermes/CLI）
 # 不带 token 直接 POST；仅监听 127.0.0.1，事件写入前仍过 events.scrub 脱敏。
@@ -966,6 +966,9 @@ from fleet.console.setup_api import router as setup_api_router  # noqa: E402
 from fleet.console import config_api  # noqa: E402
 
 app.include_router(setup_api_router)
+
+from fleet.console.quickstart_api import router as quickstart_api_router  # noqa: E402
+app.include_router(quickstart_api_router)
 
 app.add_api_route("/api/config/fleet", config_api.config_fleet_get, methods=["GET"])
 app.add_api_route("/api/config/fleet", config_api.config_fleet_put, methods=["PUT"])

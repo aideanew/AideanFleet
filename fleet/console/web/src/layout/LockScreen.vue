@@ -7,6 +7,10 @@ import { toast } from '@/composables/useToast'
 
 const auth = useAuthStore()
 const projectName = ref('')
+
+const emit = defineEmits<{
+  (e: 'new-project'): void
+}>()
 const projects = ref<{ id: string; name: string }[]>([])
 const submitting = ref(false)
 
@@ -72,6 +76,10 @@ onMounted(loadProjects)
 
       <button class="btn btn-primary btn-block" type="button" :disabled="submitting" @click="submit">
         {{ submitting ? '解锁中…' : '解锁控制台' }}
+      </button>
+
+      <button class="btn btn-text btn-block" type="button" @click="emit('new-project')">
+        + 开始你的第一个项目
       </button>
 
       <div v-if="projects.length" class="candidates">

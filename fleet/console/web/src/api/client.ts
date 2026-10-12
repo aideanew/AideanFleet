@@ -322,6 +322,39 @@ export const api = {
       body: JSON.stringify({}),
     })
   },
+
+  /** 零基础一键启动：自然语言描述 → 项目 + 会话 + 计划 */
+  async quickstartCreate(description: string): Promise<{
+    ok: boolean
+    token: string
+    project: string
+    project_name: string
+    expires_in: number
+    plan: { stages: number; tasks: number } | null
+  }> {
+    return request('/api/quickstart/create', {
+      method: 'POST',
+      body: JSON.stringify({ description }),
+    })
+  },
+
+  /** 环境就绪状态（免会话，供向导判断显示哪一步） */
+  async quickstartStatus(): Promise<{
+    ok: boolean
+    has_python: boolean
+    has_node: boolean
+    has_npm: boolean
+    has_git: boolean
+    has_cli: boolean
+    installed_clis: string[]
+    has_api_key: boolean
+    has_project: boolean
+    projects_count: number
+    frontend_built: boolean
+    ready: boolean
+  }> {
+    return request('/api/quickstart/status')
+  },
 }
 
 /** WS 连接地址（令牌走 query，与 server.py ws_endpoint 对齐） */

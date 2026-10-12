@@ -270,6 +270,15 @@ def cmd_up(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_launch(args: argparse.Namespace) -> int:
+    """一键启动：等价于 fleet up --open --no-worker，小白双击图标即可。"""
+    args.open = True
+    args.no_worker = True
+    if not hasattr(args, 'port'):
+        args.port = DEFAULT_PORT
+    return cmd_up(args)
+
+
 def cmd_down(args: argparse.Namespace) -> int:
     """停止 fleet up 拉起的 api + worker 进程。"""
     _configure_stdio()
@@ -506,6 +515,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_down = sub.add_parser("down", help="停止 fleet up 拉起的 api + worker")
     p_down.set_defaults(func=cmd_down)
+
+    p_launch = sub.add_parser("launch", help="一键启动：拉起控制台并打开浏览器（小白入口）")
+    p_launch.add_argument("--port", type=int, default=DEFAULT_PORT)
+    p_launch.set_defaults(func=cmd_launch)
 
     p_worker = sub.add_parser("worker", help="kernel 侧 worker")
     p_worker.add_argument("--loop", action="store_true", help="常驻循环")
