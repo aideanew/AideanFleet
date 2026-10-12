@@ -113,11 +113,14 @@ def is_placeholder(value: str | None) -> bool:
 
 
 def resolve_placeholders(value: str, env: dict[str, str] | None = None, depth: int = 0) -> str:
-    """把 ${VAR} 换成真值：先查传入的 env（.env 自身），再查系统环境变量。
+    """把 ${VAR} 换成真值：先查传入的 env（.env 自身），再查系统环境变量，
+    最后回退 secrets/.env（P1.2：worker/控制台进程启动早于写钥，环境变量未见时
+    从密钥文件调用期解析——transport 构钥据此无需重启进程）。
 
-    两处都取不到时**原样保留占位**，调用方据此判断"未配置"。
+    三处都取不到时**原样保留占位**，调用方据此判断"未配置"。
     """
     env = env or {}
+    secrets = secrets_env_values()
 
     def _sub(match: re.Match[str]) -> str:
         name = match.group(1)
@@ -126,9 +129,54 @@ def resolve_placeholders(value: str, env: dict[str, str] | None = None, depth: i
             return resolve_placeholders(inner, env, depth + 1) if depth < 1 else inner
         if name in os.environ:
             return os.environ[name]
+        if name in secrets:
+            return secrets[name]
         return match.group(0)
 
     return _PLACEHOLDER_RE.sub(_sub, value)
+
+
+# ---------------------------------------------------------------------------
+# secrets/.env 调用期解析（P1.2）：与导入期一次性注入互补。
+# 导入期注入硬编码仓库相对路径且只读一次——安装器部署（data_dir 在用户目录）
+# 指向错误位置，写钥后同进程/子进程也感知不到。运行期一律走这两个函数。
+# ---------------------------------------------------------------------------
+
+_SECRETS_CACHE: dict[str, tuple[int, dict[str, str]]] = {}
+
+
+def secrets_file() -> Path:
+    """secrets/.env 运行期口径：<data_dir>/../secrets/.env（FLEET_SECRETS_PATH 可覆盖）。"""
+    override = os.environ.get("FLEET_SECRETS_PATH")
+    if override:
+        return Path(override)
+    return Path(paths().data_dir).parent / "secrets" / ".env"
+
+
+def secrets_env_values() -> dict[str, str]:
+    """调用期解析 secrets/.env 键值。mtime 缓存（写钥原子替换必变 mtime，
+    免去每次 ${VAR} 解析重读文件；文件极小，缓存只为热路径省 IO）。"""
+    file = secrets_file()
+    try:
+        mtime = file.stat().st_mtime_ns
+    except OSError:
+        return {}
+    cache_key = str(file)
+    cached = _SECRETS_CACHE.get(cache_key)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    values: dict[str, str] = {}
+    try:
+        content = file.read_text(encoding="utf-8")
+    except OSError:
+        return values
+    for raw in content.splitlines():
+        raw = raw.strip()
+        if raw and not raw.startswith("#") and "=" in raw:
+            key, _, val = raw.partition("=")
+            values[key.strip()] = val.strip()
+    _SECRETS_CACHE[cache_key] = (mtime, values)
+    return values
 
 
 def unmask(value: str | None) -> str | None:

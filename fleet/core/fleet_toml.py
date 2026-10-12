@@ -43,7 +43,18 @@ class ModelCfg:
     priority: int = 10
 
     def key_present(self) -> bool:
-        return bool(self.api_key_env) and bool(os.environ.get(self.api_key_env))
+        """密钥是否已配置：os.environ 优先，回退 secrets/.env（P1.2 热更新）。
+
+        控制台/worker 进程启动早于用户写钥，环境变量未见时从密钥文件
+        调用期解析——/setup 的 key_present 指示与 doctor 无需重启即正确。
+        """
+        if not self.api_key_env:
+            return False
+        if os.environ.get(self.api_key_env):
+            return True
+        from .config import secrets_env_values
+
+        return self.api_key_env in secrets_env_values()
 
 
 @dataclass

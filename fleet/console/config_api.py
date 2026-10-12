@@ -31,8 +31,10 @@ def _error(reason: str, message: str, status: int, details: dict | None = None):
 
 
 def _secrets_file() -> Path:
-    """secrets/.env：<data_dir>/../secrets/.env（resources.json 口径，TASK-301 实测一致）。"""
-    return paths().data_dir.parent / "secrets" / ".env"
+    """secrets/.env：<data_dir>/../secrets/.env（P1.2 起委托 config.secrets_file 单源）。"""
+    from fleet.core.config import secrets_file
+
+    return secrets_file()
 
 
 def _declared_key_envs() -> set[str]:
@@ -254,6 +256,11 @@ async def secret_put(request: Request, env_name: str):
     if not value or len(value) > 512:
         return _error("VALIDATION_FAILED", "value 必填且 ≤512 字符", 422)
     _write_secret(env_name, value)
+    # P1.2 进程热更新：控制台无需重启即可测连通/过 SETUP_INCOMPLETE 门。
+    # os.environ 写入仅本进程可见；worker 等子进程走 secrets/.env 调用期回退解析。
+    import os as _os
+
+    _os.environ[env_name] = value
     return {"ok": True, "env_name": env_name, "key_present": True}
 
 
@@ -272,7 +279,12 @@ def model_test(request: Request, name: str):
         return _error("MODEL_NOT_FOUND", f"模型 {name} 未配置", 404)
     key = ""
     if model.api_key_env:
-        key = __import__("os").environ.get(model.api_key_env, "")
+        import os as _os
+
+        from fleet.core.config import secrets_env_values
+
+        # P1.2：os.environ 优先，回退 secrets/.env（进程启动早于写钥的场景）
+        key = _os.environ.get(model.api_key_env, "") or secrets_env_values().get(model.api_key_env, "")
     if not key:
         return _error("SECRET_MISSING", f"{model.api_key_env or 'API key'} 未配置", 409)
 

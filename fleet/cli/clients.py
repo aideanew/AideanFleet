@@ -27,7 +27,12 @@ class ModelCandidate:
     def key_present(self) -> bool:
         if not self.api_key_env:
             return True
-        return bool(os.environ.get(self.api_key_env))
+        if os.environ.get(self.api_key_env):
+            return True
+        # P1.2 热更新：worker/控制台进程启动早于写钥，回退 secrets/.env 调用期解析
+        from fleet.core.config import secrets_env_values
+
+        return self.api_key_env in secrets_env_values()
 
 
 def _entry_from_toml(model_cfg) -> object:
@@ -96,9 +101,10 @@ def make_planner_client(role: str = "planner",
                         transport_fn: Callable | None = None) -> Callable[[str], str]:
     """构造 planner_client(prompt) -> str。逐候选尝试；全部失败抛 RuntimeError。
 
+    P1.2 按需构建：链在每次调用时重建（model_chain），worker 启动后才添加的
+    模型/角色绑定无需重启即可见；key_present 与 ${VAR} 解析同样走调用期。
     transport_fn 注入用于测试（fleet.models.transport.get_transport 的签名）。
     """
-    chain = model_chain(role)
     transport = transport_fn
     if transport is None:
         from fleet.models import transport as transport_mod
@@ -106,6 +112,7 @@ def make_planner_client(role: str = "planner",
         transport = transport_mod.get_transport()
 
     def client(prompt: str) -> str:
+        chain = model_chain(role)
         if not chain:
             raise RuntimeError("规划模型不可用：无任何候选（fleet.toml roles/planner 与旧 .env 模型池均为空）")
         last_error = ""
@@ -117,7 +124,7 @@ def make_planner_client(role: str = "planner",
             if getattr(result, "ok", False):
                 return result.text
             last_error = (f"{candidate.name}: {getattr(result, 'error_code', '')} "
-                          f"{getattr(result, 'error_msg', '')}"[:200])
+                          f"{getattr(result, 'error_msg', '')}")[:200]
         raise RuntimeError(f"规划模型不可用（来源={chain[0].source}）：{last_error}")
 
     return client
