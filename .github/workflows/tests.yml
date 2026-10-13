@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ['3.12']
+        python-version: ['3.11', '3.12']
 
     runs-on: ${{ matrix.os }}
 
@@ -35,8 +35,9 @@ jobs:
         pip install -e .
       shell: bash
 
-    - name: Guard（契约一致 + 迁移同步 + 全量测试）
+    - name: Guard（密钥扫描 + 契约一致 + 迁移同步 + 全量测试）
       run: |
+        python scripts/check_credentials.py
         python scripts/sync_migrations.py
         python scripts/contracts_gen.py --check
         python scripts/sync_migrations.py --check
@@ -57,6 +58,7 @@ jobs:
         working-directory: fleet/console/web
         run: |
           npm install --no-fund --no-audit
+          npx vue-tsc --noEmit
           npm run build
 
       - name: Verify dist landed at fleet/console/dist
