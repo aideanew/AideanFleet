@@ -4,7 +4,8 @@
   5 gate（真实 verify）  6 写回（done/successor/blocked/needs_user）  7 计费在写回内  8 下一轮
 并发：kernel.claimable 已按 allowed_files 顶层域互斥；推荐每任务一个 git worktree（由上层编排）。
 Harness 链：来自 fleet.toml [roles.<role>] harness=[...]；缺省 ["claude","codex","opencode"]；
-  逐个 detect，第一个可用者执行；全部不可用 → blocked（原因写明，UI 标红）。
+  逐个 detect，第一个可用者执行；全部不可用 → 模型直写回退（配置了 planner_client 时，
+  model_write 按模型 JSON ops 协议改文件，仍过同一道机器门）；无回退 → blocked（原因写明，UI 标红）。
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from ..kernel import Kernel
 from ..kernel import state as st
 from ..kernel.state import TurnResult
 from . import gates
+from .model_write import run_model_write
 
 DEFAULT_HARNESS_CHAIN = ["claude", "codex", "opencode"]
 
@@ -105,20 +107,21 @@ def run_once(
     profile = None
     if todo["kind"] == "exec":
         profile, detect_fail = _pick_harness(chain)
-        if profile is None:
+        if profile is None and planner_client is None:
             claimed = kernel.claim(todo["id"], worker)
             return {
                 "action": "writeback",
                 "todo": todo["id"],
                 "result": TurnResult(
                     verdict=st.VERDICT_BLOCKED,
-                    note=f"执行体链全部不可用（{chain}）：{detect_fail}",
+                    note=f"执行体链全部不可用（{chain}）：{detect_fail}；且未配置模型直写回退（planner_client）",
                 ),
                 "claimed": claimed,
             }
     claimed = kernel.claim(
         todo["id"], worker,
-        harness=profile.name if profile else "planner",
+        harness=(profile.name if profile
+                 else ("model-write" if todo["kind"] == "exec" else "planner")),
         model=model,
     )
     kernel.mark_running(todo["id"], worker)
@@ -142,25 +145,25 @@ def run_once(
             result = _run_steer(kernel, todo["id"], planner_client, _renew)
         return {"action": "writeback", "todo": todo["id"], "result": result, "claimed": claimed}
 
-    # ---- exec 任务：harness → gate → 写回 ----
-    assert profile is not None
+    # ---- exec 任务：harness（或模型直写回退）→ gate → 写回 ----
+    assert profile is not None or (todo["kind"] == "exec" and planner_client is not None)
     workspace = todo["workspace"] or workspace_root
-    outcome = run_profile(
-        profile,
-        packet_prompt(kernel.packet_for(todo["id"])),
-        workspace,
-        model=model,
-        renew=_renew,
-    )
+    prompt = packet_prompt(kernel.packet_for(todo["id"]))
+    if profile is not None:
+        outcome = run_profile(profile, prompt, workspace, model=model, renew=_renew)
+    else:
+        outcome = run_model_write(prompt, workspace, planner_client,
+                                  allowed_files=todo["allowed_files"], renew=_renew)
     kernel.mark_verifying(todo["id"], worker)
     evidence_dir = _evidence_dir(kernel.db_path, todo["id"])
     if not outcome.ok:
         gates.save_evidence(evidence_dir, gates.GateReport(ok=False), outcome.output)
+        failure_src = f"harness {profile.name}" if profile is not None else "模型直写"
         return {
             "action": "writeback", "todo": todo["id"], "claimed": claimed,
             "result": TurnResult(
                 verdict=st.VERDICT_BLOCKED,
-                note=f"harness {profile.name} 执行失败: {outcome.error_code} {outcome.error_msg[:200]}",
+                note=f"{failure_src}执行失败: {outcome.error_code} {outcome.error_msg[:200]}",
                 **outcome.to_turn_kwargs(),
             ),
         }

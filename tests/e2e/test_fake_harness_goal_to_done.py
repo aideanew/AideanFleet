@@ -201,3 +201,63 @@ def test_all_harness_unavailable_blocks_with_reason(tmp_path, monkeypatch):
     kernel.transition(tid, outcome["result"])
     todo = kernel.get_todo(tid)
     assert todo["status"] == st.BLOCKED
+
+
+def test_model_only_fallback_goal_to_done(tmp_path, monkeypatch):
+    """P4：无任何 CLI harness——goal → plan → exec 全走模型直写回退 → 同一道真实机器门 → done。"""
+    monkeypatch.setattr(worker_mod, "_harness_chain_for", lambda role: ["no-such-harness"])
+    kernel = Kernel(tmp_path / "kernel.db", lease_seconds=120)
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    plan = json.loads(json.dumps(PLAN))
+    plan["todos"][0]["verify"] = _verify_cmd(tmp_path)
+    plan["todos"][1]["verify"] = [f"\"{PY}\" -c \"pass\""]
+    for t in plan["todos"]:
+        t["allowed_files"] = ["**"]
+
+    ops_reply = json.dumps({
+        "ops": [{"op": "write", "path": "src/main.py",
+                 "content": "def main():\n    return 42\n"}],
+        "report": "改动: src/main.py；模型自述: 模型直写回退",
+    }, ensure_ascii=False)
+    replies = [json.dumps(plan, ensure_ascii=False), ops_reply, ops_reply]
+
+    def client(prompt: str) -> str:
+        assert replies, "模型客户端被调用次数超出预期"
+        return replies.pop(0)
+
+    gid = kernel.create_goal("无 CLI 环境下完成 42 程序")
+    kernel.create_todo(gid, kind="plan", title="拆解需求", packet="实现一个 main()==42 的程序",
+                       workspace=str(workspace))
+    worker_mod.run_loop(kernel, worker="mw1", max_rounds=4, interval_s=0.01,
+                        planner_client=client, workspace_root=str(workspace))
+
+    todos = kernel.todos(gid)
+    assert {t["status"] for t in todos} == {st.DONE}, [(t["title"], t["status"]) for t in todos]
+    exec_todos = [t for t in todos if t["kind"] == "exec"]
+    for t in exec_todos:
+        attempts = kernel.attempts_of(t["id"])
+        assert attempts and attempts[0]["harness"] == "model-write"
+    assert "goal:done" in [e["kind"] for e in kernel.pending_events(100)]
+    for t in exec_todos:  # 证据照常落盘（机器门不因回退而放松）
+        gate_json = tmp_path / "evidence" / t["id"] / "gate.json"
+        assert gate_json.is_file() and json.loads(gate_json.read_text(encoding="utf-8"))["ok"] is True
+
+
+def test_model_only_out_of_scope_write_is_refused(tmp_path, monkeypatch):
+    """P4 安全边界：模型越界写（未命中 allowed_files）→ 整批拒绝 → blocked，文件不落盘。"""
+    monkeypatch.setattr(worker_mod, "_harness_chain_for", lambda role: ["no-such-harness"])
+    kernel = Kernel(tmp_path / "kernel.db", lease_seconds=60)
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    gid = kernel.create_goal("g")
+    tid = kernel.create_todo(gid, title="只许改 docs", role="fe-1",
+                             allowed_files=["docs/**"], verify=[f"\"{PY}\" -c \"pass\""],
+                             workspace=str(workspace))
+    evil = json.dumps({"ops": [{"op": "write", "path": "src/evil.py", "content": "pwned"}],
+                       "report": "越界"}, ensure_ascii=False)
+    outcome = worker_mod.run_once(kernel, worker="w1", planner_client=lambda p: evil)
+    kernel.transition(tid, outcome["result"])
+    assert kernel.get_todo(tid)["status"] == st.BLOCKED
+    assert not (workspace / "src" / "evil.py").exists()
