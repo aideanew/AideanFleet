@@ -5,7 +5,7 @@
 ## 一句话架构
 
 ```
-入口：fleet CLI(init/up/run/doctor/worker/next/writeback/skills) · Web 控制台(投影+typed 动作) · 宿主内 /fleet skill
+入口：fleet CLI(init/up/down/service/run/doctor/worker/next/writeback/skills) · Web 控制台(投影+typed 动作) · 宿主内 /fleet skill
         ↓
 Fleet Kernel（单写者）：goal · todo · claim/lease · gate · attempt · evidence · quota · events(outbox)
         ↓                          ↓
@@ -21,13 +21,21 @@ Harness Profiles（claude/codex/opencode 声明式 YAML）+ Model Router（OpenA
 
 ## 快速开始
 
+**方式一（Windows 普通用户，推荐）**：使用 CI 构建的安装器（`installer.yml` 产物，按用户安装，自带私有 Python + Node，双击即用；公开发布渠道见 docs/进度与决策.md J-04）。安装后从开始菜单「AideanFleet」启动，或运行 `fleet service install` 设置开机自启。
+
+**方式二（开发者）**：
+
 ```bash
-pip install -e ".[dev]"
+python -m venv .venv
+.venv\Scripts\activate          # Windows；Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
 fleet init        # 向导：扫描已装 CLI、探测模型 key、生成 fleet.toml
                    #   Node.js 缺失时提示一键安装（Linux/macOS 自动下载）
 fleet doctor      # 执行体/配置体检（--config 查看生效值与来源）
 fleet up          # 拉起 api(控制台 :3100) + worker，日志在 data/logs/
-fleet down        # 停止 fleet up 拉起的进程
+fleet down        # 停止 fleet up 拉起的进程（含 watchdog）
+fleet service install   # 可选：开机自启（用户级 Startup，免管理员）
 fleet run         # 旧交互式启动（兼容保留）
 ```
 
