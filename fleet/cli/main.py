@@ -234,6 +234,18 @@ def cmd_up(args: argparse.Namespace) -> int:
         return 1
     print(f"✓ api 就绪: http://127.0.0.1:{port}/")
 
+    # watchdog 守护（与 fleet run / launch_core 同一开关 FLEET_WATCHDOG=1，缺省关）
+    _watchdog_pid = None
+    if os.environ.get("FLEET_WATCHDOG") == "1":
+        try:
+            from fleet.rel.watchdog import spawn_for_console
+
+            _wd = spawn_for_console(port)
+            _watchdog_pid = _wd.pid
+            print("✓ watchdog 守护已启动（FLEET_WATCHDOG=1）")
+        except Exception as e:
+            print(f"⚠ watchdog 启动失败: {e}")
+
     # TASK-204：--open 自动开浏览器；ready 判定来自 fleet.setup.status
     if args.open:
         target = "/tasks"
@@ -262,11 +274,11 @@ def cmd_up(args: argparse.Namespace) -> int:
             stdout=worker_log, stderr=subprocess.STDOUT, creationflags=creationflags,
         )
         print("✓ worker 已启动（单写者内核：kernel.db）")
-        write_pidfile({"api": _api_pid, "worker": _worker_proc.pid, "port": port,
-                       "started": time.strftime("%Y-%m-%dT%H:%M:%S")})
+        write_pidfile({"api": _api_pid, "worker": _worker_proc.pid, "watchdog": _watchdog_pid,
+                       "port": port, "started": time.strftime("%Y-%m-%dT%H:%M:%S")})
     else:
-        write_pidfile({"api": _api_pid, "worker": None, "port": port,
-                       "started": time.strftime("%Y-%m-%dT%H:%M:%S")})
+        write_pidfile({"api": _api_pid, "worker": None, "watchdog": _watchdog_pid,
+                       "port": port, "started": time.strftime("%Y-%m-%dT%H:%M:%S")})
     print("\n完成。fleet down 可停止后台服务；Ctrl+C 退出本进程不会停掉后台服务。")
     try:
         while True:
@@ -296,7 +308,7 @@ def cmd_down(args: argparse.Namespace) -> int:
     result = stop_fleet()
     if result.get("stopped"):
         details = result.get("details", {})
-        for key in ("api", "worker"):
+        for key in ("watchdog", "api", "worker"):
             d = details.get(key, {})
             pid = d.get("pid")
             if pid:

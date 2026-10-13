@@ -1,7 +1,7 @@
 """fleet CLI 进程管理辅助（pidfile + down 命令）。
 
 pidfile 格式（JSON）：
-  {"api": <pid>, "worker": <pid>, "port": <port>, "started": <iso8601>}
+  {"api": <pid>, "worker": <pid>, "watchdog": <pid|null>, "port": <port>, "started": <iso8601>}
 """
 
 from __future__ import annotations
@@ -58,12 +58,13 @@ def _kill_pid(pid: int, gentle: bool = True) -> bool:
 
 
 def stop_fleet() -> dict:
-    """停止 fleet up 拉起的所有进程。返回 {api, worker} 各自的停止结果。"""
+    """停止 fleet up 拉起的所有进程。返回 {watchdog/api/worker} 各自的停止结果。
+    停止顺序：watchdog → api → worker（watchdog 先停，避免它把刚停下的 api 又拉起）。"""
     info = read_pidfile()
     if not info:
         return {"stopped": False, "reason": "无 pidfile（fleet 未运行或未通过 fleet up 启动）"}
     results = {}
-    for key in ("api", "worker"):
+    for key in ("watchdog", "api", "worker"):
         pid = info.get(key)
         if pid:
             ok = _kill_pid(pid)

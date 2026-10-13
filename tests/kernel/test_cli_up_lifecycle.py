@@ -77,3 +77,44 @@ def test_up_fresh_no_worker(up_env, monkeypatch):
     assert cli_main.cmd_up(_args(no_worker=True)) == 0
     assert len(up_env["spawns"]) == 1
     assert up_env["pidfile"][-1]["worker"] is None
+
+
+# ---------- S12.2 watchdog 生命周期 ----------
+
+def test_up_watchdog_spawned_and_recorded(up_env, monkeypatch):
+    """FLEET_WATCHDOG=1 → up 拉起 watchdog 并记入 pidfile（down 可停）。"""
+    monkeypatch.setattr(cli_main, "_port_open", lambda p: False)
+    monkeypatch.setenv("FLEET_WATCHDOG", "1")
+    fake_wd = _FakeProc(9001)
+    monkeypatch.setattr("fleet.rel.watchdog.spawn_for_console",
+                        lambda port, host="127.0.0.1": fake_wd)
+    assert cli_main.cmd_up(_args()) == 0
+    info = up_env["pidfile"][-1]
+    assert info["watchdog"] == 9001
+    assert info["worker"] == 4002  # api/worker 照常
+
+
+def test_up_watchdog_off_by_default(up_env, monkeypatch):
+    """缺省（未设 FLEET_WATCHDOG）不拉 watchdog，pidfile watchdog=None。"""
+    monkeypatch.setattr(cli_main, "_port_open", lambda p: False)
+    monkeypatch.delenv("FLEET_WATCHDOG", raising=False)
+    spawned = []
+    monkeypatch.setattr("fleet.rel.watchdog.spawn_for_console",
+                        lambda port, host="127.0.0.1": spawned.append(port))
+    assert cli_main.cmd_up(_args()) == 0
+    assert spawned == []
+    assert up_env["pidfile"][-1]["watchdog"] is None
+
+
+def test_down_stops_watchdog_first(tmp_path, monkeypatch):
+    """停止顺序：watchdog → api → worker（防 watchdog 复活 api），pidfile 清理。"""
+    pidfile = tmp_path / "fleet.pid"
+    pidfile.write_text(json.dumps({"api": 111, "worker": 222, "watchdog": 333, "port": 3999}),
+                       encoding="utf-8")
+    monkeypatch.setattr(pidutil, "pidfile_path", lambda: pidfile)
+    order: list[int] = []
+    monkeypatch.setattr(pidutil, "_kill_pid", lambda pid, gentle=True: order.append(pid) or True)
+    result = pidutil.stop_fleet()
+    assert result["stopped"] is True
+    assert order == [333, 111, 222]
+    assert not pidfile.exists()

@@ -14,6 +14,8 @@ rem N4: wheel 装进 site-packages 后 paths().root 缺 .env.example（ConfigErr
 rem FLEET_ROOT 指回安装目录，配合 .iss 拷入的 .env.example 完成首启初始化。
 set FLEET_ROOT=%HERE%
 set PATH=%HERE%runtime\node;%HERE%npm-global;%PATH%
+rem 安装器默认开启 watchdog 守护（崩溃自动拉起；fleet down 会先停 watchdog 再停 api/worker）
+set FLEET_WATCHDOG=1
 "%PYTHON%" -m fleet.cli.main up --open %*
 if errorlevel 1 (
   echo.
