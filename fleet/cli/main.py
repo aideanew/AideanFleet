@@ -2,6 +2,8 @@
 怎么用（安装后）：
     fleet init            向导：扫描已装 CLI、探测模型 key 环境变量、写 fleet.toml 默认配置
     fleet up              进程管理器：拉起 api（控制台）+ worker，日志落 data/logs/，健康轮询 20s
+    fleet down            停止 fleet up 拉起的 watchdog + api + worker
+    fleet service         开机自启管理（install/uninstall/status，用户级 Startup，免管理员）
     fleet run             旧交互式启动（launch_core 9 步流程，兼容保留）
     fleet doctor          对每个 harness profile 跑 detect+auth_check；--config 打印生效配置与来源
     fleet worker          常驻 worker 循环（kernel 侧执行器）
@@ -322,6 +324,29 @@ def cmd_down(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_service(args: argparse.Namespace) -> int:
+    """fleet service install|uninstall|status：用户级开机自启（Startup 目录 .cmd）。"""
+    _configure_stdio()
+    from fleet.cli import service
+
+    action = getattr(args, "service_action", "status") or "status"
+    if action == "install":
+        result = service.install()
+        suffix = "（覆盖旧脚本）" if result.get("overwritten") else ""
+        print(f"✓ 开机自启已安装{suffix}: {result['path']}")
+    elif action == "uninstall":
+        result = service.uninstall()
+        if result.get("removed"):
+            print(f"✓ 开机自启已移除: {result['path']}")
+        else:
+            print(f"· {result.get('reason', '未安装')}: {result['path']}")
+    else:
+        result = service.status()
+        state = "已安装" if result["installed"] else "未安装"
+        print(f"· 开机自启{state}: {result['path']}")
+    return 0
+
+
 def _print_log_tail(path: Path, lines: int) -> None:
     if not path.is_file():
         print("  （日志文件尚未生成）")
@@ -539,8 +564,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_up.add_argument("--no-worker", action="store_true", help="只起控制台")
     p_up.set_defaults(func=cmd_up)
 
-    p_down = sub.add_parser("down", help="停止 fleet up 拉起的 api + worker")
+    p_down = sub.add_parser("down", help="停止 fleet up 拉起的 watchdog + api + worker")
     p_down.set_defaults(func=cmd_down)
+
+    p_service = sub.add_parser("service", help="开机自启管理（用户级 Startup，免管理员）")
+    p_service_sub = p_service.add_subparsers(dest="service_action")
+    p_service_sub.add_parser("install", help="安装自启（登录后自动 fleet up --open）")
+    p_service_sub.add_parser("uninstall", help="移除自启")
+    p_service_sub.add_parser("status", help="查看安装状态与路径")
+    p_service.set_defaults(func=cmd_service)
 
     p_launch = sub.add_parser("launch", help="一键启动：拉起控制台并打开浏览器（小白入口）")
     p_launch.add_argument("--port", type=int, default=DEFAULT_PORT)
