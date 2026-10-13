@@ -215,7 +215,8 @@ def cmd_up(args: argparse.Namespace) -> int:
     port = args.port
     creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
     _api_pid = None
-    if _port_open(port):
+    reused = _port_open(port)
+    if reused:
         print(f"⚠ 端口 {port} 已被占用——复用既有控制台（若非 Fleet 实例请换 --port）")
     else:
         api_log = open(_log_file("api"), "ab")
@@ -248,7 +249,11 @@ def cmd_up(args: argparse.Namespace) -> int:
         webbrowser.open(url)
         print(f"✓ 已打开浏览器: {url}")
 
-    if not args.no_worker:
+    if reused:
+        # 单实例收紧：复用既有控制台时不拉第二个 worker、不覆盖 pidfile
+        #（保留原实例进程记录，fleet down 仍停原实例；重启栈请先 fleet down 再 up）
+        print("· 复用模式：不重复拉起 worker、不覆盖 pidfile（重启服务请先 fleet down 再 up）")
+    elif not args.no_worker:
         worker_log = open(_log_file("worker"), "ab")
         print(f"→ 启动 worker，日志: {_log_file('worker')}")
         _worker_proc = subprocess.Popen(
