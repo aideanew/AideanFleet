@@ -14,8 +14,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# dev 组与 requirements.txt 保持一致（httpx2 兼容 starlette TestClient；websockets 供
+# uvicorn ws 探活；pytest-timeout 为 pyproject timeout=120 守门所需）
 dev = [
     "pytest>=8",
+    "pytest-timeout>=2.3",
+    "httpx2>=2.13.1",
+    "websockets>=12",
 ]
 
 [project.scripts]
